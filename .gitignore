@@ -1,0 +1,15 @@
+# Editor settings
+.vscode
+# Installed packages
+node_modules/
+# Log files
+npm-debug.log
+# Configuration
+.env
+# Test outputs
+coverage/
+# Compiled JavaScript files
+lib/
+# Other
+*.pem
+!mock-cert.pem
