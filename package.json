@@ -12,13 +12,16 @@
     "format:check": "prettier src/ --check"
   },
   "dependencies": {
+    "commander": "^12.1.0",
     "markdown-table": "^3.0.3",
-    "probot": "^13.0.1"
+    "probot": "^13.0.1",
+    "shell-quote": "^1.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.12.0",
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^20.0.0",
+    "@types/shell-quote": "^1.7.5",
     "eslint": "^9.12.0",
     "eslint-config-prettier": "^9.1.0",
     "nock": "^14.0.0-beta.5",

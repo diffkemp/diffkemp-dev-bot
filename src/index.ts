@@ -10,10 +10,7 @@ import {
   createCommentReaction,
 } from "./utils/comments.js";
 import { Evaluation } from "./evaluation/index.js";
-import { EvaluationConfig } from "./evaluation/config.js";
-
-/** Text in a comment on a PR which launches evaluation of the PR. */
-const EVALUATE_REGEX = /^\\evaluate$/m;
+import { CommandParserError, EVALUATION_REGEX, EvaluationConfig } from "./evaluation/config.js";
 
 /** Main function run by the Probot framework. */
 export default (app: Probot) => {
@@ -33,7 +30,7 @@ async function issueCommentCreatedHandler(context: Context<"issue_comment.create
   const message = context.payload.comment.body;
   if (context.payload.issue?.pull_request) {
     context.log.trace("Comment on PR");
-    const evaluateComment = EVALUATE_REGEX.exec(message);
+    const evaluateComment = EVALUATION_REGEX.exec(message);
     if (evaluateComment && (await checkCommenterPermission(context, ["admin", "write"]))) {
       // Evaluation comment from user with write permission on a repo.
       context.log.info("Comment triggering evaluation");
@@ -50,6 +47,10 @@ async function evaluate(context: Context<"issue_comment.created">) {
     const report = await evaluation.run();
     await createComment(context, report);
   } catch (error) {
+    if (error instanceof CommandParserError) {
+      await createComment(context, "```\n" + error.message + "\n```");
+      return;
+    }
     await createComment(context, "`Error occurred while running evaluation.`");
     context.log.error(error);
   }

@@ -6,6 +6,15 @@
 
 import { Context } from "probot";
 import { getInstallationToken, getPRRepoAndBranch } from "../utils/comments.js";
+import { parse } from "shell-quote";
+import { Command, OptionValues } from "commander";
+
+/**
+ * Text in a comment on a PR which launches evaluation of the PR.
+ *
+ * @note Comment must contain line starting with `\evaluate` and optionally can contain options on the rest of the line.
+ */
+export const EVALUATION_REGEX = /^\\evaluate\b(.*)$/m;
 
 /** Class containing necessary configuration for running evaluation. */
 export class EvaluationConfig {
@@ -20,13 +29,16 @@ export class EvaluationConfig {
   baseRepo;
   /** Default branch of base repository. */
   baseBranch;
+  /** Options for running evaluation provided by user. */
+  options;
 
-  constructor({ prRepo, prBranch, baseRepo, baseBranch, token }: EvaluationConfigParams) {
+  constructor({ prRepo, prBranch, baseRepo, baseBranch, token, options }: EvaluationConfigParams) {
     this.prRepo = prRepo;
     this.prBranch = prBranch;
     this.baseRepo = baseRepo;
     this.baseBranch = baseBranch;
     this.token = token;
+    this.options = options;
   }
   /**
    * Creates config based on the issue comment context.
@@ -42,12 +54,14 @@ export class EvaluationConfig {
     } = context.payload.repository;
     // If the repository is private we need to get token, so we can clone the repo.
     const token = isPrivate ? await getInstallationToken(context) : undefined;
+    const options = new EvaluationCommandParser().parse(context.payload.comment.body);
     return new EvaluationConfig({
       prBranch,
       prRepo,
       baseBranch,
       baseRepo,
       token,
+      options,
     });
   }
 }
@@ -57,4 +71,58 @@ interface EvaluationConfigParams {
   baseRepo: string;
   baseBranch: string;
   token?: string;
+  options: OptionValues;
+}
+
+/** Error thrown when error occurs while parsing user options. */
+export class CommandParserError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/** Class for parsing options provided by user on evaluate command. */
+class EvaluationCommandParser {
+  output = "";
+  parser;
+  constructor() {
+    this.parser = new Command();
+    this.parser
+      .name("\\evaluate")
+      .description("Evaluator of pull requests")
+      .showHelpAfterError()
+      // Saving output to variable instead of printing.
+      .configureOutput({
+        writeOut: (str) => (this.output += str),
+        writeErr: (str) => (this.output += str),
+        outputError: (str) => (this.output += str),
+      })
+      // Do not exit application on exit!
+      .exitOverride();
+  }
+  /** Parses options from comment. */
+  parse(comment: string) {
+    // Get arguments of evaluation
+    let optionsStr = EVALUATION_REGEX.exec(comment)![1];
+    if (!optionsStr) {
+      optionsStr = "";
+    } else {
+      optionsStr = optionsStr.trim();
+    }
+    // Using shell-quote parser to split string into array of options.
+    const optionsArr = parse(optionsStr);
+    // The array can contain special values (e.g. if user used '||', '&&', ...
+    // Check if the array does not include these, if yes throw error.
+    optionsArr.forEach((option) => {
+      if (typeof option !== "string") {
+        throw new CommandParserError("Error occurred while processing evaluation options.");
+      }
+    });
+    try {
+      this.parser.parse(optionsArr as string[], { from: "user" });
+      return this.parser.opts();
+    } catch {
+      throw new CommandParserError(this.output);
+    }
+  }
 }
