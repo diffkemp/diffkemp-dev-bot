@@ -7,7 +7,7 @@
 import { Context } from "probot";
 import { getInstallationToken, getPRRepoAndBranch } from "../utils/comments.js";
 import { parse } from "shell-quote";
-import { Command, OptionValues } from "commander";
+import { Command } from "commander";
 
 /**
  * Text in a comment on a PR which launches evaluation of the PR.
@@ -71,7 +71,13 @@ interface EvaluationConfigParams {
   baseRepo: string;
   baseBranch: string;
   token?: string;
-  options: OptionValues;
+  options: EvaluationOptions;
+}
+
+/** Type representing options provided by user for running evaluation. */
+interface EvaluationOptions {
+  /** Comparison options to use by PR's DiffKemp. */
+  prCmpOpt?: string[];
 }
 
 /** Error thrown when error occurs while parsing user options. */
@@ -90,6 +96,7 @@ class EvaluationCommandParser {
     this.parser
       .name("\\evaluate")
       .description("Evaluator of pull requests")
+      .option("--pr-cmp-opt <options...>", "option to add options for PR's `compare` command")
       .showHelpAfterError()
       // Saving output to variable instead of printing.
       .configureOutput({

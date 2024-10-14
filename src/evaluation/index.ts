@@ -21,17 +21,27 @@ export class Evaluation {
     using baseContainer = new Container();
     const prDiffKemp = new DiffKemp(prContainer, this.config.prRepo, this.config.prBranch);
     const baseDiffKemp = new DiffKemp(baseContainer, this.config.baseRepo, this.config.baseBranch);
-    const prResultsPromise = this.runExperiments(prDiffKemp);
-    const baseResultsPromise = this.runExperiments(baseDiffKemp);
+    const prResultsPromise = this.runExperiments(prDiffKemp, true);
+    const baseResultsPromise = this.runExperiments(baseDiffKemp, false);
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
     const report = prResults.compare(baseResults).report();
     return report;
   }
-  /** Runs experiments using given DiffKemp 'version'. */
-  private async runExperiments(diffkemp: DiffKemp) {
+  /**
+   * Runs experiments using given DiffKemp 'version'.
+   *
+   * @param pr True if the DiffKemp is PR's DiffKemp.
+   */
+  private async runExperiments(diffkemp: DiffKemp, pr: boolean) {
     await diffkemp.setup(this.config.token);
     const eqbench = new EqBenchRunner(diffkemp);
-    const result = await eqbench.run();
+    let options = {};
+    if (pr) {
+      options = {
+        cmpOpts: this.config.options.prCmpOpt,
+      };
+    }
+    const result = await eqbench.run(options);
     return result;
   }
 }

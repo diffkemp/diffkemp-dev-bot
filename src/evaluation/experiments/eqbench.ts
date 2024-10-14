@@ -10,7 +10,12 @@
 
 import { IContainer } from "../../container.js";
 import { DiffKemp } from "../../diffkemp.js";
-import { ExperimentDifference, ExperimentResult, ExperimentRunner } from "./experiment.js";
+import {
+  ExperimentDifference,
+  ExperimentResult,
+  ExperimentRunner,
+  ExperimentRunnerOptions,
+} from "./experiment.js";
 import { markdownTable } from "markdown-table";
 
 /** Class for executing DiffKemp on EqBench benchmarks. */
@@ -35,13 +40,24 @@ export class EqBenchRunner implements ExperimentRunner {
    *
    * @returns Promise that resolves with results when the execution ends.
    */
-  public async run() {
+  public async run(options: ExperimentRunnerOptions) {
     await this.diffkemp.container.run(`mkdir -p ${EqBenchRunner.RESULTS_PATH}`);
-    return await this.buildAndCompare();
+    const commandOptions: string[] = [];
+    // Add user specified compare options
+    if (options?.cmpOpts) {
+      options.cmpOpts.forEach((opt) => {
+        commandOptions.push(`--add-cmp-opt=${opt}`);
+      });
+    }
+    return await this.buildAndCompare(commandOptions);
   }
 
-  /** Builds EqBench programs and compares them using tool for running DiffKemp on the programs. */
-  private async buildAndCompare(): Promise<EqBenchResult> {
+  /**
+   * Builds EqBench programs and compares them using tool for running DiffKemp on the programs.
+   *
+   * @param options EqBench tool options to be used.
+   */
+  private async buildAndCompare(options: string[]): Promise<EqBenchResult> {
     const bin = this.diffkemp.getPathToBin();
     const resultDir = EqBenchRunner.RESULTS_PATH;
     const snapDir = EqBenchRunner.SNAPSHOTS_PATH;
@@ -56,6 +72,7 @@ export class EqBenchRunner implements ExperimentRunner {
       "--snap-dir",
       snapDir,
     ];
+    command.push(...options);
     await this.diffkemp.runInDevelopmentEnv(command);
     const result = EqBenchResult.fromOutputDir(this.diffkemp.container, resultDir);
     return result;

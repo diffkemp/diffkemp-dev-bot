@@ -5,7 +5,10 @@
  */
 
 export interface ExperimentRunner {
-  run(): Promise<ExperimentResult>;
+  run(options?: ExperimentRunnerOptions): Promise<ExperimentResult>;
+}
+export interface ExperimentRunnerOptions {
+  cmpOpts?: string[];
 }
 
 /** Represents a result of an experiment. */
