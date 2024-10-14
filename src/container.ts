@@ -36,6 +36,10 @@ export class Container implements Disposable, IContainer {
     });
     return stdout;
   }
+  /** Returns promise with a content of a file from the container. */
+  async readFile(path: string) {
+    return this.run(`cat ${path}`);
+  }
   /** Stops and removes the container after `using` variable is out of scope. */
   [Symbol.dispose]() {
     execSync(`podman stop ${this.id}`);
@@ -45,4 +49,5 @@ export class Container implements Disposable, IContainer {
 
 export interface IContainer {
   run(command: string | string[]): Promise<string>;
+  readFile(path: string): Promise<string>;
 }

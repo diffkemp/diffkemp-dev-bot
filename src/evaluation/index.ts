@@ -7,6 +7,7 @@
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
 import { EvaluationConfig } from "./config.js";
+import { EqBenchRunner } from "./experiments/eqbench.js";
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {
@@ -19,8 +20,9 @@ export class Evaluation {
     using container = new Container();
     const diffkemp = new DiffKemp(container, this.config.prRepo, this.config.prBranch);
     await diffkemp.setup(this.config.token);
-    const bin = diffkemp.getPathToBin();
-    const output = await diffkemp.runInDevelopmentEnv(`${bin} --help`);
-    return output;
+    const eqbench = new EqBenchRunner(diffkemp);
+    const report = await eqbench.run();
+    const NUMBER_OF_SPACES = 2;
+    return JSON.stringify(report.toJSON(), null, NUMBER_OF_SPACES);
   }
 }
