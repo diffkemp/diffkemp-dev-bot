@@ -2,14 +2,16 @@
  * Contains classes for:
  *
  * - Executing DiffKemp on benchmarks from EqBench dataset,
- * - Representing its result
+ * - Representing its result,
+ * - Representing differences between two results.
  *
  * @author Lukas Petr
  */
 
 import { IContainer } from "../../container.js";
 import { DiffKemp } from "../../diffkemp.js";
-import { ExperimentResult, ExperimentRunner } from "./experiment.js";
+import { ExperimentDifference, ExperimentResult, ExperimentRunner } from "./experiment.js";
+import { markdownTable } from "markdown-table";
 
 /** Class for executing DiffKemp on EqBench benchmarks. */
 export class EqBenchRunner implements ExperimentRunner {
@@ -116,6 +118,138 @@ export class EqBenchResult implements ExperimentResult {
         FN: Array.from(this.perProgram.FN),
       },
     };
+  }
+
+  /**
+   * Compares current results with different (base) results.
+   *
+   * @returns Returns class representing the differences.
+   */
+  public compare(base: EqBenchResult) {
+    return new EqBenchDifference(base, this);
+  }
+}
+
+/**
+ * Class representing difference between results of EqBench benchmarks comparison done using two
+ * DiffKemp versions.
+ */
+export class EqBenchDifference extends ExperimentDifference {
+  /* Results. */
+  base;
+  pr;
+  /**
+   * Differences in amount of in/correctly evaluated programs between two DiffKemp versions for each
+   * category (TN, TP, FN, FP).
+   */
+  total;
+  /** Differences in runtime. */
+  comparisonRuntime;
+  /**
+   * Contains info about which programs are not located for given category in a base result but are
+   * located in a pr result.
+   */
+  perProgram;
+
+  /** Creates difference. */
+  constructor(base: EqBenchResult, pr: EqBenchResult) {
+    super();
+    this.base = base;
+    this.pr = pr;
+    this.perProgram = {
+      TN: this.getNewPrograms(pr.perProgram.TN, base.perProgram.TN),
+      TP: this.getNewPrograms(pr.perProgram.TP, base.perProgram.TP),
+      FN: this.getNewPrograms(pr.perProgram.FN, base.perProgram.FN),
+      FP: this.getNewPrograms(pr.perProgram.FP, base.perProgram.FP),
+    };
+    this.total = {
+      TN: this.pr.perProgram.TN.size - this.base.perProgram.TN.size,
+      TP: this.pr.perProgram.TP.size - this.base.perProgram.TP.size,
+      FN: this.pr.perProgram.FN.size - this.base.perProgram.FN.size,
+      FP: this.pr.perProgram.FP.size - this.base.perProgram.FP.size,
+    };
+    this.comparisonRuntime = pr.comparisonRuntime - base.comparisonRuntime;
+  }
+  /** Returns only programs which are not between basePrograms. */
+  private getNewPrograms(prPrograms: Set<string>, basePrograms: Set<string>) {
+    const newPrograms = new Set(prPrograms);
+    basePrograms.forEach((program) => {
+      newPrograms.delete(program);
+    });
+    return newPrograms;
+  }
+  /** Creates report in markdown format informing about the differences. */
+  report() {
+    const table = [];
+    const header = ["", "TN", "FP", "TP", "FN", "compare runtime"];
+    table.push(header);
+
+    table.push(this.reportLine());
+    const detailedReport = this.reportDetails();
+
+    return `
+# Experiment results
+
+## EqBench
+
+${markdownTable(table)}
+
+<details>
+
+<summary>Details</summary>
+
+${detailedReport}
+
+</details>
+    `;
+  }
+
+  /** Returns array containing short report of differences [TN, FP, TP, FN, compare runtime]. */
+  reportLine() {
+    return [
+      `${this.base.perProgram.TN.size} ${this.style(this.total.TN, true)}`,
+      `${this.base.perProgram.FP.size} ${this.style(this.total.FP, false)}`,
+      `${this.base.perProgram.TP.size} ${this.style(this.total.TP, true)}`,
+      `${this.base.perProgram.FN.size} ${this.style(this.total.FN, false)}`,
+      `${Math.round(this.base.comparisonRuntime)}s ${this.style(Math.round(this.comparisonRuntime), false)}`,
+    ];
+  }
+
+  /**
+   * Reports detail information about differences of results between the two DiffKemp versions in
+   * markdown format.
+   */
+  reportDetails() {
+    return `
+
+${this.perProgram.TN.size > 0 ? "### New true negatives" : ""}
+
+${this.getProgramList(this.perProgram.TN)}
+
+${this.perProgram.FP.size > 0 ? "### New false positives" : ""}
+
+${this.getProgramList(this.perProgram.FP)}
+
+${this.perProgram.TP.size > 0 ? "### New true positives" : ""}
+
+${this.getProgramList(this.perProgram.TP)}
+
+${this.perProgram.FN.size > 0 ? "### New false negatives" : ""}
+
+${this.getProgramList(this.perProgram.FN)}
+
+    `;
+  }
+
+  /** Returns list of programs in markdown format with links to source files. */
+  private getProgramList(programs: Set<string>) {
+    return Array.from(programs)
+      .map((p) => `- [${p}](${this.getProgramURL(p)})`)
+      .join("\n");
+  }
+  /** Returns program from line from `eqbench-results.csv` file. */
+  private getProgramURL(program: string) {
+    return `https://github.com/shrBadihi/EqBench/tree/main/benchmarks/${program}`;
   }
 }
 

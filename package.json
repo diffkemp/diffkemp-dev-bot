@@ -12,6 +12,7 @@
     "format:check": "prettier src/ --check"
   },
   "dependencies": {
+    "markdown-table": "^3.0.3",
     "probot": "^13.0.1"
   },
   "devDependencies": {

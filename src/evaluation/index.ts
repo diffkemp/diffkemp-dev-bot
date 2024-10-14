@@ -17,12 +17,21 @@ export class Evaluation {
   }
   /** Runs evaluation and returns promise containing report of the evaluation. */
   async run() {
-    using container = new Container();
-    const diffkemp = new DiffKemp(container, this.config.prRepo, this.config.prBranch);
+    using prContainer = new Container();
+    using baseContainer = new Container();
+    const prDiffKemp = new DiffKemp(prContainer, this.config.prRepo, this.config.prBranch);
+    const baseDiffKemp = new DiffKemp(baseContainer, this.config.baseRepo, this.config.baseBranch);
+    const prResultsPromise = this.runExperiments(prDiffKemp);
+    const baseResultsPromise = this.runExperiments(baseDiffKemp);
+    const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
+    const report = prResults.compare(baseResults).report();
+    return report;
+  }
+  /** Runs experiments using given DiffKemp 'version'. */
+  private async runExperiments(diffkemp: DiffKemp) {
     await diffkemp.setup(this.config.token);
     const eqbench = new EqBenchRunner(diffkemp);
-    const report = await eqbench.run();
-    const NUMBER_OF_SPACES = 2;
-    return JSON.stringify(report.toJSON(), null, NUMBER_OF_SPACES);
+    const result = await eqbench.run();
+    return result;
   }
 }
