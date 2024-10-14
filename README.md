@@ -5,10 +5,13 @@ GitHub Bot used in the DiffKemp development process.
 ## Requirements
 
 - Node.js v22
+- Podman
 
 ## Setup to run the bot
 
 ```sh
+# Create podman image
+./create_image.sh
 # Install dependencies
 npm install
 # Translate TypeScript to JavaScript

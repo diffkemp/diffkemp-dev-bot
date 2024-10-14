@@ -9,6 +9,7 @@ import {
   createComment,
   createCommentReaction,
 } from "./utils/comments.js";
+import { Evaluation } from "./evaluation/index.js";
 
 /** Text in a comment on a PR which launches evaluation of the PR. */
 const EVALUATE_REGEX = /^\\evaluate$/m;
@@ -43,5 +44,12 @@ async function issueCommentCreatedHandler(context: Context<"issue_comment.create
 /** Evaluates impact of a PR on a DiffKemp equivalence checking. */
 async function evaluate(context: Context<"issue_comment.created">) {
   await createCommentReaction(context);
-  await createComment(context, "Evaluation done.");
+  try {
+    const evaluation = new Evaluation();
+    const report = await evaluation.run();
+    await createComment(context, report);
+  } catch (error) {
+    await createComment(context, "`Error occurred while running evaluation.`");
+    context.log.error(error);
+  }
 }
