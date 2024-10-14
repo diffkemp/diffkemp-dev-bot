@@ -46,3 +46,32 @@ export async function createComment(context: Context<"issue_comment">, body: str
   const responseComment = context.issue({ body });
   await context.octokit.issues.createComment(responseComment);
 }
+
+/**
+ * Gets name of repository and branch of PR on which the comment was made, expects that the comment
+ * was made on PR and not on an issue.
+ *
+ * @returns Returns promise with repository <owner/repo> and branch name.
+ */
+export async function getPRRepoAndBranch(context: Context<"issue_comment">) {
+  const { data } = await context.octokit.pulls.get(context.pullRequest());
+  return {
+    repo: data.head.repo!.full_name,
+    branch: data.head.ref,
+  };
+}
+
+/**
+ * Returns promise with app installation token for repo based on context. The token only allows to
+ * read repository content and will expire after 1 hour.
+ */
+export async function getInstallationToken(context: Context<"issue_comment">) {
+  const response = await context.octokit.rest.apps.createInstallationAccessToken({
+    installation_id: context.payload.installation!.id,
+    repository_ids: [context.payload.repository.id],
+    permissions: {
+      contents: "read",
+    },
+  });
+  return response.data.token;
+}

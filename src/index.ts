@@ -10,6 +10,7 @@ import {
   createCommentReaction,
 } from "./utils/comments.js";
 import { Evaluation } from "./evaluation/index.js";
+import { EvaluationConfig } from "./evaluation/config.js";
 
 /** Text in a comment on a PR which launches evaluation of the PR. */
 const EVALUATE_REGEX = /^\\evaluate$/m;
@@ -45,7 +46,7 @@ async function issueCommentCreatedHandler(context: Context<"issue_comment.create
 async function evaluate(context: Context<"issue_comment.created">) {
   await createCommentReaction(context);
   try {
-    const evaluation = new Evaluation();
+    const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
     const report = await evaluation.run();
     await createComment(context, report);
   } catch (error) {
