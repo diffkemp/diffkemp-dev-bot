@@ -4,7 +4,7 @@
  * @author Lukas Petr
  */
 
-import { Context } from "probot";
+import { Context, Logger } from "probot";
 import { getInstallationToken, getPRRepoAndBranch } from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command } from "commander";
@@ -18,6 +18,8 @@ export const EVALUATION_REGEX = /^\\evaluate\b(.*)$/m;
 
 /** Class containing necessary configuration for running evaluation. */
 export class EvaluationConfig {
+  /** Class for logging. */
+  logger;
   /** Owner and repository name from which the PR was made. */
   prRepo;
   /** Branch containing commits which are in the PR. */
@@ -32,13 +34,14 @@ export class EvaluationConfig {
   /** Options for running evaluation provided by user. */
   options;
 
-  constructor({ prRepo, prBranch, baseRepo, baseBranch, token, options }: EvaluationConfigParams) {
-    this.prRepo = prRepo;
-    this.prBranch = prBranch;
-    this.baseRepo = baseRepo;
-    this.baseBranch = baseBranch;
-    this.token = token;
-    this.options = options;
+  constructor(params: EvaluationConfigParams) {
+    this.prRepo = params.prRepo;
+    this.prBranch = params.prBranch;
+    this.baseRepo = params.baseRepo;
+    this.baseBranch = params.baseBranch;
+    this.token = params.token;
+    this.options = params.options;
+    this.logger = params.logger;
   }
   /**
    * Creates config based on the issue comment context.
@@ -55,6 +58,7 @@ export class EvaluationConfig {
     // If the repository is private we need to get token, so we can clone the repo.
     const token = isPrivate ? await getInstallationToken(context) : undefined;
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
+    const logger = context.log;
     return new EvaluationConfig({
       prBranch,
       prRepo,
@@ -62,6 +66,7 @@ export class EvaluationConfig {
       baseRepo,
       token,
       options,
+      logger,
     });
   }
 }
@@ -72,6 +77,7 @@ interface EvaluationConfigParams {
   baseBranch: string;
   token?: string;
   options: EvaluationOptions;
+  logger: Logger;
 }
 
 /** Type representing options provided by user for running evaluation. */
