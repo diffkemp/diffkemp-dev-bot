@@ -34,11 +34,14 @@ export class Evaluation {
    * @param pr True if the DiffKemp is PR's DiffKemp.
    */
   private async runExperiments(diffkemp: DiffKemp, pr: boolean) {
+    await diffkemp.setup(this.config.token);
     if (pr && !this.config.options.rebuild) {
       // Try to firstly recover snapshot from 'master', so we can skip build phase.
+      const llvmVersion = await diffkemp.getLlvmVersion();
+      const snapshotKey = `${this.config.baseSHA}-llvm${llvmVersion}`;
       this.config.logger.trace("Trying to restore snapshots to PR container");
-      await Cache.restoreSnapshots(this.config.baseSHA, diffkemp.container);
-    } else if (!pr) {
+      await Cache.restoreSnapshots(snapshotKey, diffkemp.container);
+    } else {
       // Try to check if base results are not cached.
       const result = await Cache.restoreResult(this.config.baseSHA);
       if (result) {
@@ -46,7 +49,6 @@ export class Evaluation {
         return result;
       }
     }
-    await diffkemp.setup(this.config.token);
     const eqbench = new EqBenchRunner(diffkemp);
     let options = {};
     if (pr) {
@@ -60,7 +62,9 @@ export class Evaluation {
       this.config.logger.trace(result, "Caching base results");
       await Cache.cacheResult(this.config.baseSHA, result);
       this.config.logger.trace(result, "Caching base snapshots");
-      await Cache.cacheSnapshots(this.config.baseSHA, diffkemp.container);
+      const llvmVersion = await diffkemp.getLlvmVersion();
+      const snapshotKey = `${this.config.baseSHA}-llvm${llvmVersion}`;
+      await Cache.cacheSnapshots(snapshotKey, diffkemp.container);
     }
     return result;
   }

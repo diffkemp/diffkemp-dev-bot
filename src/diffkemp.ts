@@ -72,4 +72,9 @@ export class DiffKemp {
     }
     return this.container.run(`nix develop ${this.directory} --command bash -c '${command}'`);
   }
+  /** Returns latest LLVM version which DiffKemp supports. */
+  async getLlvmVersion() {
+    const output = await this.runInDevelopmentEnv("llvm-as --version");
+    return /LLVM version (\d+)/.exec(output)![1];
+  }
 }
