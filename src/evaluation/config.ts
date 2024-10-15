@@ -94,6 +94,8 @@ interface EvaluationConfigParams {
 interface EvaluationOptions {
   /** Comparison options to use by PR's DiffKemp. */
   prCmpOpt?: string[];
+  /** Rebuild snapshots on PR, respectively do not recover snapshots from cache. */
+  rebuild?: boolean;
 }
 
 /** Error thrown when error occurs while parsing user options. */
@@ -113,6 +115,7 @@ class EvaluationCommandParser {
       .name("\\evaluate")
       .description("Evaluator of pull requests")
       .option("--pr-cmp-opt <options...>", "option to add options for PR's `compare` command")
+      .option("--rebuild", "rebuild snapshots for comparisons on PR")
       .showHelpAfterError()
       // Saving output to variable instead of printing.
       .configureOutput({

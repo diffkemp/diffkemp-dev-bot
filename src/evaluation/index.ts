@@ -34,11 +34,11 @@ export class Evaluation {
    * @param pr True if the DiffKemp is PR's DiffKemp.
    */
   private async runExperiments(diffkemp: DiffKemp, pr: boolean) {
-    if (pr) {
+    if (pr && !this.config.options.rebuild) {
       // Try to firstly recover snapshot from 'master', so we can skip build phase.
       this.config.logger.trace("Trying to restore snapshots to PR container");
       await Cache.restoreSnapshots(this.config.baseSHA, diffkemp.container);
-    } else {
+    } else if (!pr) {
       // Try to check if base results are not cached.
       const result = await Cache.restoreResult(this.config.baseSHA);
       if (result) {
