@@ -78,14 +78,37 @@ export class EvaluationConfig {
       baseSHA,
     });
   }
+  /**
+   * Creates config based on the push context, expects push to base branch.
+   *
+   * @returns Promise with configuration.
+   */
+  static async fromPushToMaster(context: Context<"push">) {
+    const {
+      private: isPrivate,
+      full_name: baseRepo,
+      default_branch: baseBranch,
+    } = context.payload.repository;
+    // If the repository is private we need to get token, so we can clone the repo.
+    const token = isPrivate ? await getInstallationToken(context) : undefined;
+    const logger = context.log;
+    const baseSHA = await getDefaultBranchSHA(context);
+    return new EvaluationConfig({
+      baseBranch,
+      baseRepo,
+      token,
+      logger,
+      baseSHA,
+    });
+  }
 }
 interface EvaluationConfigParams {
-  prRepo: string;
-  prBranch: string;
+  prRepo?: string;
+  prBranch?: string;
   baseRepo: string;
   baseBranch: string;
   token?: string;
-  options: EvaluationOptions;
+  options?: EvaluationOptions;
   logger: Logger;
   baseSHA: string;
 }

@@ -17,6 +17,9 @@ export default (app: Probot) => {
   app.on("issue_comment.created", async (context) => {
     await issueCommentCreatedHandler(context);
   });
+  app.on("push", async (context) => {
+    await pushHandler(context);
+  });
 };
 
 /** Handles when comment was created on an issue/PR. */
@@ -54,4 +57,18 @@ async function evaluate(context: Context<"issue_comment.created">) {
     await createComment(context, "`Error occurred while running evaluation.`");
     context.log.error(error);
   }
+}
+/** Handles pushes to repository. */
+async function pushHandler(context: Context<"push">) {
+  const defaultBranch = context.payload.repository.default_branch;
+  const eventRef = context.payload.ref;
+  if (`refs/heads/${defaultBranch}` === eventRef) {
+    await pushToMasterHandler(context);
+  }
+}
+/** Handles pushes to master/default branch. */
+async function pushToMasterHandler(context: Context<"push">) {
+  context.log.info("Push to default branch");
+  const evaluation = new Evaluation(await EvaluationConfig.fromPushToMaster(context));
+  await evaluation.runOnlyBase();
 }
