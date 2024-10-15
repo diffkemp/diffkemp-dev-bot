@@ -6,6 +6,7 @@
 
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
+import { Cache } from "./cache.js";
 import { EvaluationConfig } from "./config.js";
 import { EqBenchRunner } from "./experiments/eqbench.js";
 
@@ -33,6 +34,18 @@ export class Evaluation {
    * @param pr True if the DiffKemp is PR's DiffKemp.
    */
   private async runExperiments(diffkemp: DiffKemp, pr: boolean) {
+    if (pr) {
+      // Try to firstly recover snapshot from 'master', so we can skip build phase.
+      this.config.logger.trace("Trying to restore snapshots to PR container");
+      await Cache.restoreSnapshots(this.config.baseSHA, diffkemp.container);
+    } else {
+      // Try to check if base results are not cached.
+      const result = await Cache.restoreResult(this.config.baseSHA);
+      if (result) {
+        this.config.logger.trace("Restored base results from cache");
+        return result;
+      }
+    }
     await diffkemp.setup(this.config.token);
     const eqbench = new EqBenchRunner(diffkemp);
     let options = {};
@@ -42,6 +55,13 @@ export class Evaluation {
       };
     }
     const result = await eqbench.run(options);
+    if (!pr) {
+      // Cache base results.
+      this.config.logger.trace(result, "Caching base results");
+      await Cache.cacheResult(this.config.baseSHA, result);
+      this.config.logger.trace(result, "Caching base snapshots");
+      await Cache.cacheSnapshots(this.config.baseSHA, diffkemp.container);
+    }
     return result;
   }
 }

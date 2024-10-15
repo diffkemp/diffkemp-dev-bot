@@ -5,7 +5,11 @@
  */
 
 import { Context, Logger } from "probot";
-import { getInstallationToken, getPRRepoAndBranch } from "../utils/comments.js";
+import {
+  getDefaultBranchSHA,
+  getInstallationToken,
+  getPRRepoAndBranch,
+} from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command } from "commander";
 
@@ -33,6 +37,8 @@ export class EvaluationConfig {
   baseBranch;
   /** Options for running evaluation provided by user. */
   options;
+  /** SHA of last commit in the default branch of base repository. */
+  baseSHA;
 
   constructor(params: EvaluationConfigParams) {
     this.prRepo = params.prRepo;
@@ -42,6 +48,7 @@ export class EvaluationConfig {
     this.token = params.token;
     this.options = params.options;
     this.logger = params.logger;
+    this.baseSHA = params.baseSHA;
   }
   /**
    * Creates config based on the issue comment context.
@@ -59,6 +66,7 @@ export class EvaluationConfig {
     const token = isPrivate ? await getInstallationToken(context) : undefined;
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
     const logger = context.log;
+    const baseSHA = await getDefaultBranchSHA(context);
     return new EvaluationConfig({
       prBranch,
       prRepo,
@@ -67,6 +75,7 @@ export class EvaluationConfig {
       token,
       options,
       logger,
+      baseSHA,
     });
   }
 }
@@ -78,6 +87,7 @@ interface EvaluationConfigParams {
   token?: string;
   options: EvaluationOptions;
   logger: Logger;
+  baseSHA: string;
 }
 
 /** Type representing options provided by user for running evaluation. */

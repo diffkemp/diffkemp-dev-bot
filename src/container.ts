@@ -40,6 +40,22 @@ export class Container implements Disposable, IContainer {
   async readFile(path: string) {
     return this.run(`cat ${path}`);
   }
+  /**
+   * Check if file exists in the container.
+   *
+   * @returns Promise that resolves as true if the file exists.
+   */
+  async exists(path: string) {
+    return (await this.run(`test -e ${path} && echo 'true' || echo 'false'`)).trim() === "true";
+  }
+  /** Copies file to container */
+  async copyTo(srcPath: string, destPath: string = srcPath) {
+    await execFilePromisify("podman", ["cp", srcPath, `${this.id}:${destPath}`]);
+  }
+  /** Copies file from container */
+  async copyFrom(srcPath: string, destPath: string = srcPath) {
+    await execFilePromisify("podman", ["cp", `${this.id}:${srcPath}`, destPath]);
+  }
   /** Stops and removes the container after `using` variable is out of scope. */
   [Symbol.dispose]() {
     execSync(`podman stop ${this.id}`);
@@ -50,4 +66,7 @@ export class Container implements Disposable, IContainer {
 export interface IContainer {
   run(command: string | string[]): Promise<string>;
   readFile(path: string): Promise<string>;
+  copyTo(from: string, to: string): Promise<void>;
+  copyFrom(from: string, to: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
 }

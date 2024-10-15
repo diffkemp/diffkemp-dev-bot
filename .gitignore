@@ -13,3 +13,5 @@ lib/
 # Other
 *.pem
 !mock-cert.pem
+# Cache
+.cache*

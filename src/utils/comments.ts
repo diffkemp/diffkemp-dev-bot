@@ -75,3 +75,11 @@ export async function getInstallationToken(context: Context<"issue_comment">) {
   });
   return response.data.token;
 }
+
+/** Returns current SHA of default branch. */
+export async function getDefaultBranchSHA(context: Context<"issue_comment">) {
+  const response = await context.octokit.repos.getBranch(
+    context.repo({ branch: context.payload.repository.default_branch }),
+  );
+  return response.data.commit.sha;
+}

@@ -62,6 +62,10 @@ export class EqBenchRunner implements ExperimentRunner {
     const resultDir = EqBenchRunner.RESULTS_PATH;
     const snapDir = EqBenchRunner.SNAPSHOTS_PATH;
     const srcDir = EqBenchRunner.DATASET_PATH;
+    // If the snapshots exists (e.g. were recovered from cache) use them and only compare them.
+    if (await this.diffkemp.container.exists(snapDir)) {
+      options.push("--only-compare");
+    }
     const command = [
       EqBenchRunner.SCRIPT_PATH,
       srcDir,
@@ -135,6 +139,17 @@ export class EqBenchResult implements ExperimentResult {
         FN: Array.from(this.perProgram.FN),
       },
     };
+  }
+
+  /** Loads EqBench results from JSON format, so they can be loaded from cache. */
+  public static fromJSON(json: EqBenchCachedResult) {
+    const perProgram = {
+      TP: new Set(json.perProgram.TP),
+      TN: new Set(json.perProgram.TN),
+      FP: new Set(json.perProgram.FP),
+      FN: new Set(json.perProgram.FN),
+    };
+    return new EqBenchResult(json.comparisonRuntime, perProgram);
   }
 
   /**
@@ -302,4 +317,15 @@ interface EqBenchJSONResults {
   ["compare-command"]: string;
   ["only-compare"]: boolean;
   ["compare-runtime"]: number;
+}
+
+/** Represents format of cached result. */
+export interface EqBenchCachedResult {
+  comparisonRuntime: number;
+  perProgram: {
+    FN: string[];
+    FP: string[];
+    TP: string[];
+    TN: string[];
+  };
 }
