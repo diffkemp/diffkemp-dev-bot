@@ -55,7 +55,12 @@ export class EqBenchRunner implements ExperimentRunner {
       });
     }
     const defaultResultPromise = this.buildAndCompare("default optimization", commandOptions);
-    const results = [await defaultResultPromise];
+    const optResultPromise = this.buildAndCompare("-O2 optimization", [
+      ...commandOptions,
+      "--no-opt-override",
+      "--add-clang-options=-O2",
+    ]);
+    const results = await Promise.all([defaultResultPromise, optResultPromise]);
     return new EqBenchResults(EQBENCH_RESULTS_CLASS_TITLE, results);
   }
 
