@@ -58,7 +58,7 @@ export class Evaluation {
       await Cache.restoreSnapshots(snapshotKey, diffkemp.container);
     } else {
       // Try to check if base results are not cached.
-      const result = await Cache.restoreResult(this.config.baseSHA);
+      const result = await Cache.restoreResults(this.config.baseSHA);
       if (result) {
         this.config.logger.trace("Restored base results from cache");
         return result;
@@ -75,7 +75,7 @@ export class Evaluation {
     if (!pr) {
       // Cache base results.
       this.config.logger.trace(result, "Caching base results");
-      await Cache.cacheResult(this.config.baseSHA, result);
+      await Cache.cacheResults(this.config.baseSHA, result);
       this.config.logger.trace(result, "Caching base snapshots");
       const llvmVersion = await diffkemp.getLlvmVersion();
       const snapshotKey = `${this.config.baseSHA}-llvm${llvmVersion}`;

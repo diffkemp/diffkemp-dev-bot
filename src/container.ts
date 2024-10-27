@@ -56,6 +56,10 @@ export class Container implements Disposable, IContainer {
   async copyFrom(srcPath: string, destPath: string = srcPath) {
     await execFilePromisify("podman", ["cp", `${this.id}:${srcPath}`, destPath]);
   }
+  /** Creates temporary directory in the container and returns path to it. */
+  async mkdtemp(): Promise<string> {
+    return (await this.run("mktemp -d")).trim();
+  }
   /** Stops and removes the container after `using` variable is out of scope. */
   [Symbol.dispose]() {
     execSync(`podman stop ${this.id}`);
@@ -69,4 +73,5 @@ export interface IContainer {
   copyTo(from: string, to: string): Promise<void>;
   copyFrom(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
+  mkdtemp(): Promise<string>;
 }

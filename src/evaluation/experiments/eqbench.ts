@@ -8,15 +8,19 @@
  * @author Lukas Petr
  */
 
+import { join } from "path";
 import { IContainer } from "../../container.js";
 import { DiffKemp } from "../../diffkemp.js";
 import {
   ExperimentDifference,
+  ExperimentDifferences,
   ExperimentResult,
+  ExperimentResults,
   ExperimentRunner,
   ExperimentRunnerOptions,
 } from "./experiment.js";
-import { markdownTable } from "markdown-table";
+
+export const EQBENCH_RESULTS_CLASS_TITLE = "EqBench";
 
 /** Class for executing DiffKemp on EqBench benchmarks. */
 export class EqBenchRunner implements ExperimentRunner {
@@ -42,6 +46,7 @@ export class EqBenchRunner implements ExperimentRunner {
    */
   public async run(options: ExperimentRunnerOptions) {
     await this.diffkemp.container.run(`mkdir -p ${EqBenchRunner.RESULTS_PATH}`);
+    await this.diffkemp.container.run(`mkdir -p ${EqBenchRunner.SNAPSHOTS_PATH}`);
     const commandOptions: string[] = [];
     // Add user specified compare options
     if (options?.cmpOpts) {
@@ -49,22 +54,30 @@ export class EqBenchRunner implements ExperimentRunner {
         commandOptions.push(`--add-cmp-opt=${opt}`);
       });
     }
-    return await this.buildAndCompare(commandOptions);
+    const defaultResultPromise = this.buildAndCompare("default optimization", commandOptions);
+    const results = [await defaultResultPromise];
+    return new EqBenchResults(EQBENCH_RESULTS_CLASS_TITLE, results);
   }
 
   /**
    * Builds EqBench programs and compares them using tool for running DiffKemp on the programs.
    *
+   * @param description Describes results based on which options were used.
    * @param options EqBench tool options to be used.
    */
-  private async buildAndCompare(options: string[]): Promise<EqBenchResult> {
+  private async buildAndCompare(description: string, options: string[]): Promise<EqBenchResult> {
     const bin = this.diffkemp.getPathToBin();
-    const resultDir = EqBenchRunner.RESULTS_PATH;
-    const snapDir = EqBenchRunner.SNAPSHOTS_PATH;
-    const srcDir = EqBenchRunner.DATASET_PATH;
+    const resultDir = join(EqBenchRunner.RESULTS_PATH, description.replace(" ", "_"));
+    const snapDir = join(EqBenchRunner.SNAPSHOTS_PATH, description.replace(" ", "_"));
+    let srcDir = EqBenchRunner.DATASET_PATH;
     // If the snapshots exists (e.g. were recovered from cache) use them and only compare them.
     if (await this.diffkemp.container.exists(snapDir)) {
       options.push("--only-compare");
+    } else {
+      // Copy the sources to be able to build snapshots from EqBench programs in parallel.
+      srcDir = await this.diffkemp.container.mkdtemp();
+      await this.diffkemp.container.run(["cp", "-r", EqBenchRunner.DATASET_PATH, srcDir]);
+      srcDir = join(srcDir, "eqbench");
     }
     const command = [
       EqBenchRunner.SCRIPT_PATH,
@@ -78,13 +91,13 @@ export class EqBenchRunner implements ExperimentRunner {
     ];
     command.push(...options);
     await this.diffkemp.runInDevelopmentEnv(command);
-    const result = EqBenchResult.fromOutputDir(this.diffkemp.container, resultDir);
+    const result = EqBenchResult.fromOutputDir(description, this.diffkemp.container, resultDir);
     return result;
   }
 }
 
 /** Class containing result of DiffKemp execution on EqBench benchmarks. */
-export class EqBenchResult implements ExperimentResult {
+export class EqBenchResult extends ExperimentResult {
   /** Runtime of comparison in seconds. */
   comparisonRuntime;
   /**
@@ -93,6 +106,7 @@ export class EqBenchResult implements ExperimentResult {
    */
   perProgram;
   private constructor(
+    description: string,
     comparisonRuntime: number,
     perProgram: {
       FN: Set<string>;
@@ -101,11 +115,17 @@ export class EqBenchResult implements ExperimentResult {
       TN: Set<string>;
     },
   ) {
+    super();
+    this.description = description;
     this.comparisonRuntime = comparisonRuntime;
     this.perProgram = perProgram;
   }
   /** Extracts results from the output directory of EqBench run. */
-  public static async fromOutputDir(container: IContainer, outputDir: string) {
+  public static async fromOutputDir(
+    description: string,
+    container: IContainer,
+    outputDir: string,
+  ): Promise<EqBenchResult> {
     const jsonContent = await container.readFile(`${outputDir}/result.json`);
     const csvContent = (await container.readFile(`${outputDir}/eqbench-results.csv`)).trim();
     const resultsMetadata = JSON.parse(jsonContent) as EqBenchJSONResults;
@@ -125,12 +145,13 @@ export class EqBenchResult implements ExperimentResult {
         );
       });
     }
-    return new EqBenchResult(runtime, perProgram);
+    return new EqBenchResult(description, runtime, perProgram);
   }
 
   /** Represents results in JSON format, used for caching of results. */
   public toJSON() {
     return {
+      description: this.description,
       comparisonRuntime: this.comparisonRuntime,
       perProgram: {
         TP: Array.from(this.perProgram.TP),
@@ -149,7 +170,7 @@ export class EqBenchResult implements ExperimentResult {
       FP: new Set(json.perProgram.FP),
       FN: new Set(json.perProgram.FN),
     };
-    return new EqBenchResult(json.comparisonRuntime, perProgram);
+    return new EqBenchResult(json.description, json.comparisonRuntime, perProgram);
   }
 
   /**
@@ -159,6 +180,22 @@ export class EqBenchResult implements ExperimentResult {
    */
   public compare(base: EqBenchResult) {
     return new EqBenchDifference(base, this);
+  }
+}
+
+/**
+ * Class containing multiple results, each result gained by using different options and described by
+ * different description.
+ */
+export class EqBenchResults extends ExperimentResults {
+  /** Loads results from json (cache). */
+  public static fromJSON(json: EqBenchCachedResults) {
+    const results = Object.values(json.results).map((result) => EqBenchResult.fromJSON(result));
+    return new EqBenchResults(json.title, results);
+  }
+  protected createDifferences() {
+    const header = ["description", "TN", "FP", "TP", "FN", "compare runtime"];
+    return new ExperimentDifferences(this.title, header);
   }
 }
 
@@ -183,9 +220,10 @@ export class EqBenchDifference extends ExperimentDifference {
    */
   perProgram;
 
-  /** Creates difference. */
+  /** Creates difference. The results should have the same description! */
   constructor(base: EqBenchResult, pr: EqBenchResult) {
     super();
+    this.description = base.description;
     this.base = base;
     this.pr = pr;
     this.perProgram = {
@@ -210,35 +248,14 @@ export class EqBenchDifference extends ExperimentDifference {
     });
     return newPrograms;
   }
-  /** Creates report in markdown format informing about the differences. */
-  report() {
-    const table = [];
-    const header = ["", "TN", "FP", "TP", "FN", "compare runtime"];
-    table.push(header);
 
-    table.push(this.reportLine());
-    const detailedReport = this.reportDetails();
-
-    return `
-# Experiment results
-
-## EqBench
-
-${markdownTable(table)}
-
-<details>
-
-<summary>Details</summary>
-
-${detailedReport}
-
-</details>
-    `;
-  }
-
-  /** Returns array containing short report of differences [TN, FP, TP, FN, compare runtime]. */
+  /**
+   * Returns array containing short report of differences [description, TN, FP, TP, FN, compare
+   * runtime].
+   */
   reportLine() {
     return [
+      this.description,
       `${this.base.perProgram.TN.size} ${this.style(this.total.TN, true)}`,
       `${this.base.perProgram.FP.size} ${this.style(this.total.FP, false)}`,
       `${this.base.perProgram.TP.size} ${this.style(this.total.TP, true)}`,
@@ -253,23 +270,29 @@ ${detailedReport}
    */
   reportDetails() {
     return `
+<details>
 
-${this.perProgram.TN.size > 0 ? "### New true negatives" : ""}
+<summary>Details for ${this.description}</summary>
+
+### Details for ${this.description}
+
+${this.perProgram.TN.size > 0 ? "#### New true negatives" : ""}
 
 ${this.getProgramList(this.perProgram.TN)}
 
-${this.perProgram.FP.size > 0 ? "### New false positives" : ""}
+${this.perProgram.FP.size > 0 ? "#### New false positives" : ""}
 
 ${this.getProgramList(this.perProgram.FP)}
 
-${this.perProgram.TP.size > 0 ? "### New true positives" : ""}
+${this.perProgram.TP.size > 0 ? "#### New true positives" : ""}
 
 ${this.getProgramList(this.perProgram.TP)}
 
-${this.perProgram.FN.size > 0 ? "### New false negatives" : ""}
+${this.perProgram.FN.size > 0 ? "#### New false negatives" : ""}
 
 ${this.getProgramList(this.perProgram.FN)}
 
+</details>
     `;
   }
 
@@ -319,8 +342,14 @@ interface EqBenchJSONResults {
   ["compare-runtime"]: number;
 }
 
+/** Represents format of cached results. */
+export interface EqBenchCachedResults {
+  title: string;
+  results: Record<string, EqBenchCachedResult>;
+}
 /** Represents format of cached result. */
 export interface EqBenchCachedResult {
+  description: string;
   comparisonRuntime: number;
   perProgram: {
     FN: string[];
