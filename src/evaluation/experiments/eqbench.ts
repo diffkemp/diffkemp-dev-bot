@@ -19,8 +19,7 @@ import {
   ExperimentRunner,
   ExperimentRunnerOptions,
 } from "./experiment.js";
-
-export const EQBENCH_RESULTS_CLASS_TITLE = "EqBench";
+import { ExperimentTitle } from "./titles.js";
 
 /** Class for executing DiffKemp on EqBench benchmarks. */
 export class EqBenchRunner implements ExperimentRunner {
@@ -61,7 +60,7 @@ export class EqBenchRunner implements ExperimentRunner {
       "--add-clang-options=-O2",
     ]);
     const results = await Promise.all([defaultResultPromise, optResultPromise]);
-    return new EqBenchResults(EQBENCH_RESULTS_CLASS_TITLE, results);
+    return new EqBenchResults(ExperimentTitle.EQBENCH, results);
   }
 
   /**
@@ -194,9 +193,11 @@ export class EqBenchResult extends ExperimentResult {
  */
 export class EqBenchResults extends ExperimentResults {
   /** Loads results from json (cache). */
-  public static fromJSON(json: EqBenchCachedResults) {
-    const results = Object.values(json.results).map((result) => EqBenchResult.fromJSON(result));
-    return new EqBenchResults(json.title, results);
+  public static fromJSON(json: object) {
+    const results = Object.values((json as EqBenchCachedResults).results).map((result) =>
+      EqBenchResult.fromJSON(result),
+    );
+    return new EqBenchResults(ExperimentTitle.EQBENCH, results);
   }
   protected createDifferences() {
     const header = ["description", "TN", "FP", "TP", "FN", "compare runtime"];

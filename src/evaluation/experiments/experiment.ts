@@ -5,6 +5,9 @@
  */
 
 import { markdownTable } from "markdown-table";
+import { ExperimentTitle } from "./titles.js";
+import { DefaultCachedResults } from "./default.js";
+import { EqBenchCachedResults } from "./eqbench.js";
 
 export interface ExperimentRunner {
   run(options?: ExperimentRunnerOptions): Promise<ExperimentResult>;
@@ -35,11 +38,14 @@ export abstract class ExperimentResults {
   private results = new Map<string, ExperimentResult>();
   /** Title/name of the results. */
   protected title;
-  constructor(title: string, results: ExperimentResult[]) {
+  constructor(title: ExperimentTitle, results: ExperimentResult[]) {
     this.title = title;
     results.forEach((result) => {
       this.results.set(result.description, result);
     });
+  }
+  public getTitle() {
+    return this.title;
   }
   /** Creates instance of ExperimentDifferences. */
   protected abstract createDifferences(): ExperimentDifferences;
@@ -68,6 +74,17 @@ export abstract class ExperimentResults {
   /** Returns result with specified description. */
   public getByDescription(description: string): ExperimentResult | undefined {
     return this.results.get(description);
+  }
+  /** Returns results from JSON format. */
+  public static async createFromJSON(json: object): Promise<ExperimentResults> {
+    const jsonObj = json as { title: string };
+    const { EqBenchResults } = await import("./eqbench.js");
+    if (jsonObj.title === ExperimentTitle.EQBENCH.toString()) {
+      return EqBenchResults.fromJSON(json as EqBenchCachedResults);
+    } else {
+      const { DefaultResults } = await import("./default.js");
+      return DefaultResults.fromJSON(json as DefaultCachedResults);
+    }
   }
 }
 
@@ -108,16 +125,20 @@ export abstract class ExperimentDifference {
  */
 export class ExperimentDifferences {
   /** Maps description of difference to difference, */
-  private differences = new Map<string, ExperimentDifference>();
+  protected differences = new Map<string, ExperimentDifference>();
   private title;
   /**
    * Header of table for reporting found differences, used in connection with
    * `ExperimentDifference`'s `reportLine` method.
    */
   private header;
-  public constructor(title: string, header: string[]) {
+  public constructor(title: ExperimentTitle, header: string[]) {
     this.title = title;
     this.header = header;
+  }
+
+  public getTitle() {
+    return this.title;
   }
   /* Adds new difference */
   public add(difference: ExperimentDifference) {

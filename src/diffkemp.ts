@@ -6,6 +6,7 @@
 
 import { join } from "path";
 import { IContainer } from "./container.js";
+import { Differences } from "./differences.js";
 
 /** Class for working with DiffKemp inside a container. */
 export class DiffKemp {
@@ -77,4 +78,84 @@ export class DiffKemp {
     const output = await this.runInDevelopmentEnv("llvm-as --version");
     return /LLVM version (\d+)/.exec(output)![1];
   }
+
+  /**
+   * Compares two snapshots.
+   *
+   * @param oldSnapDir Path to old snapshot.
+   * @param newSnapDir Path to new snapshot.
+   * @param outDir Path to directory where will be saved output of comparison.
+   * @param options Array of options to pass to compared command.
+   * @returns Promise that contains stdout of the compare command and statistics.
+   */
+  async compare(oldSnapDir: string, newSnapDir: string, outDir: string, options?: string[]) {
+    const command = [
+      this.getPathToBin(),
+      "compare",
+      "--report-stat",
+      "--extended-stat",
+      oldSnapDir,
+      newSnapDir,
+      "-o",
+      outDir,
+    ];
+    if (options) {
+      command.push(...options);
+    }
+    const output = await this.runInDevelopmentEnv(command);
+    return {
+      output,
+      statistics: DiffKemp.getComparisonStatistics(output),
+    };
+  }
+
+  /**
+   * Returns statistics about comparison.
+   *
+   * @param comparisonOutput Standard output of comparison.
+   */
+  static getComparisonStatistics(comparisonOutput: string): ComparisonStatistics {
+    return {
+      runtime: Number(/^Elapsed time: *(\d+.?\d*) s$/m.exec(comparisonOutput)![1]),
+      equal: Number(/^Equal:.*?(\d+).*\(\d+%\)$/m.exec(comparisonOutput)![1]),
+      notEqual: Number(/^Not equal:.*?(\d+).*\(\d+%\)$/m.exec(comparisonOutput)![1]),
+      unknown: Number(/^Unknown:.*?(\d+).*\(\d+%\)$/m.exec(comparisonOutput)![1]),
+      errors: Number(/^Errors:.*?(\d+).*\(\d+%\)$/m.exec(comparisonOutput)![1]),
+      totalDifferences: Number(/^Total differences:.*?(\d+).*$/m.exec(comparisonOutput)![1]),
+    };
+  }
+
+  /**
+   * Extracts differing functions from output directory of DiffKemp compare command.
+   *
+   * @returns Promise containing map, where keys are names of compared functions which were
+   *   evaluated as non-equal and values list of differing functions for the given compared
+   *   function. The compared functions are inserted to the map in sorted order, also the array with
+   *   differing functions is sorted.
+   */
+  async getDiffering(outDir: string): Promise<Differences> {
+    try {
+      return Differences.fromContainer(this.container, outDir);
+    } catch (error) {
+      throw new Error(`Error while getting differing (${outDir}) in ${this.branch}`, {
+        cause: error,
+      });
+    }
+  }
+}
+
+/** Statistics about comparison. */
+export interface ComparisonStatistics {
+  /** Runtime of comparison in seconds. */
+  runtime: number;
+  /** Number of compared symbols evaluated as equal. */
+  equal: number;
+  /** Number of compared symbols evaluated as non-equal */
+  notEqual: number;
+  /** Number of compared symbols (usually located only in one snapshot). */
+  unknown: number;
+  /** Number of compared symbols where error occurred. */
+  errors: number;
+  /** Number of total differences found. */
+  totalDifferences: number;
 }
