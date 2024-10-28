@@ -15,6 +15,7 @@ import {
   ExperimentRunner,
   ExperimentRunnerOptions,
 } from "./experiments/experiment.js";
+import { RHELRunner } from "./experiments/rhel.js";
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {
@@ -159,10 +160,24 @@ class VersionEvaluation {
     if (this.experiments.eqbench) {
       runners.push(new EqBenchRunner(diffkemp));
     }
+    if (this.experiments.rhelFunctions) {
+      runners.push(new RHELRunner(diffkemp));
+    }
+    if (this.experiments.rhelSysctl) {
+      runners.push(
+        new RHELRunner(diffkemp, {
+          sysctl: true,
+        }),
+      );
+    }
     return runners;
   }
 }
 /** Format for selecting experiments which should be run. */
 class ExperimentSelection {
   eqbench = true;
+  /** RHEL kernel comparison of KABI functions. */
+  rhelFunctions = true;
+  /** RHEL kernel comparison of sysctl parameters. */
+  rhelSysctl = true;
 }

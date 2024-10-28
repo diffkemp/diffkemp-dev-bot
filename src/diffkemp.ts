@@ -78,7 +78,22 @@ export class DiffKemp {
     const output = await this.runInDevelopmentEnv("llvm-as --version");
     return /LLVM version (\d+)/.exec(output)![1];
   }
-
+  /**
+   * Builds kernel.
+   *
+   * @param srcDir Path to kernel source directory.
+   * @param outDir Path to directory where the snapshot will be saved.
+   * @param symbolFile Path to file containing list o symbols which will be prepared for comparison.
+   * @param sysctl True if the symbols specified in the symbol list are sysctl parameters.
+   * @returns Promise that contains stdout of the build command.
+   */
+  async buildKernel(srcDir: string, outDir: string, symbolFile: string, sysctl = false) {
+    const command = [this.getPathToBin(), "build-kernel", srcDir, outDir, symbolFile];
+    if (sysctl) {
+      command.push("--sysctl");
+    }
+    return await this.runInDevelopmentEnv(command);
+  }
   /**
    * Compares two snapshots.
    *
