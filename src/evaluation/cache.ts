@@ -4,32 +4,44 @@
  * @author Lukas Petr
  */
 import { existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { IContainer } from "../container.js";
-import { EqBenchCachedResults, EqBenchResults } from "./experiments/eqbench.js";
+import { ExperimentResults } from "./experiments/experiment.js";
 
 /** Class for caching files and restoring them. */
 export class Cache {
   static readonly CACHE_DIR = ".cache/";
-  /** Caches EqBench results. */
-  static async cacheResults(key: string, results: EqBenchResults) {
+  /** Caches results of experiment. */
+  static async cacheResults(key: string, results: ExperimentResults) {
     const dir = join(Cache.CACHE_DIR, "results", key);
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
     const NUMBER_OF_SPACES = 2;
-    await writeFile(join(dir, "eqbench.json"), JSON.stringify(results, null, NUMBER_OF_SPACES));
+    await writeFile(
+      join(dir, `${results.getTitle()}.json`),
+      JSON.stringify(results, null, NUMBER_OF_SPACES),
+    );
   }
-  /** Return cached EqBench results or null if result is not cached. */
-  static async restoreResults(key: string): Promise<EqBenchResults | null> {
+  /** Return cached results, returns null if results are not cached. */
+  static async restoreResults(key: string): Promise<ExperimentResults[] | null> {
     const dir = join(Cache.CACHE_DIR, "results", key);
-    const file = join(dir, "eqbench.json");
     if (!existsSync(dir)) {
       return null;
     }
-    const json = JSON.parse(await readFile(file, { encoding: "utf-8" })) as EqBenchCachedResults;
-    return EqBenchResults.fromJSON(json);
+    const resultFiles = await readdir(dir);
+    const results = Array<ExperimentResults>();
+    for (const fileName of resultFiles) {
+      if (!fileName.endsWith(".json")) {
+        continue;
+      }
+      const file = join(dir, fileName);
+      const fileContent = await readFile(file, { encoding: "utf-8" });
+      const json = JSON.parse(fileContent) as object;
+      results.push(await ExperimentResults.createFromJSON(json));
+    }
+    return results;
   }
   /**
    * Caches snapshots from the container.
@@ -41,6 +53,9 @@ export class Cache {
     const dir = join(Cache.CACHE_DIR, "snapshots", key);
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
+    } else {
+      // Already cached
+      return;
     }
     await container.copyFrom("/experiments/snapshots", dir);
   }

@@ -8,13 +8,21 @@ import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
 import { Cache } from "./cache.js";
 import { EvaluationConfig } from "./config.js";
+import { EvaluationResults } from "./evaluation_results.js";
 import { EqBenchRunner } from "./experiments/eqbench.js";
+import {
+  ExperimentResults,
+  ExperimentRunner,
+  ExperimentRunnerOptions,
+} from "./experiments/experiment.js";
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {
   config: EvaluationConfig;
+  selectedExperiments: ExperimentSelection;
   constructor(config: EvaluationConfig) {
     this.config = config;
+    this.selectedExperiments = new ExperimentSelection();
   }
   /**
    * Runs evaluation and returns promise containing report of the evaluation.
@@ -25,62 +33,136 @@ export class Evaluation {
     if (this.config.prRepo === undefined || this.config.prBranch === undefined) {
       throw new Error("Info about PR must be provided in the config!");
     }
-    using prContainer = new Container();
-    using baseContainer = new Container();
-    const prDiffKemp = new DiffKemp(prContainer, this.config.prRepo, this.config.prBranch);
-    const baseDiffKemp = new DiffKemp(baseContainer, this.config.baseRepo, this.config.baseBranch);
-    const prResultsPromise = this.runExperiments(prDiffKemp, true);
-    const baseResultsPromise = this.runExperiments(baseDiffKemp, false);
+    const prRunnerOptions: ExperimentRunnerOptions = {
+      cmpOpts: this.config.options?.prCmpOpt,
+    };
+    const prCachingOption = {
+      restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
+    };
+    const prEvaluation = new VersionEvaluation(
+      this.config.prRepo,
+      this.config.prBranch,
+      prRunnerOptions,
+      this.selectedExperiments,
+      this.config.token,
+    );
+    const prResultsPromise = prEvaluation.runExperiments(prCachingOption);
+
+    const baseResultsPromise = this.restoreOrRunBase();
+
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
+
     const report = prResults.compare(baseResults).report();
     return report;
   }
-  /** Runs experiments only on a base branch, returns promise with results. */
+  /**
+   * Tries to restore results for base DiffKemp, if results do not exists launching evaluation of
+   * all experiments and caching the results.
+   */
+  private async restoreOrRunBase() {
+    let results = await EvaluationResults.restoreFromCache(this.config.baseSHA);
+    if (results) return results;
+    const baseEvaluation = new VersionEvaluation(
+      this.config.baseRepo,
+      this.config.baseBranch,
+      {},
+      new ExperimentSelection(),
+      this.config.token,
+    );
+    results = await baseEvaluation.runExperiments({ cache: this.config.baseSHA });
+    await results.cache(this.config.baseSHA);
+    return results;
+  }
+  /** Runs experiments only on a base branch, caches the results and returns promise with results. */
   async runOnlyBase() {
-    using baseContainer = new Container();
-    const baseDiffKemp = new DiffKemp(baseContainer, this.config.baseRepo, this.config.baseBranch);
-    const result = await this.runExperiments(baseDiffKemp, false);
-    return result;
+    const evaluation = new VersionEvaluation(
+      this.config.baseRepo,
+      this.config.baseBranch,
+      {},
+      new ExperimentSelection(),
+      this.config.token,
+    );
+    const results = await evaluation.runExperiments({ cache: this.config.baseSHA });
+    await results.cache(this.config.baseSHA);
+    return results;
+  }
+}
+/** Class for evaluation of certain version of DiffKemp on selected experiments. */
+class VersionEvaluation {
+  repo;
+  branch;
+  token;
+  experimentOptions;
+  experiments;
+  /**
+   * @param repo Repo containing version of DiffKemp which you want to evaluate.
+   * @param branch Branch containing version of DiffKemp which you want to evaluate.
+   * @param runnerOptions Options passed down to experiment runners.
+   * @param experiments Selection of experiments which you want to run.
+   * @param token Token for retrieving private repos.
+   */
+  constructor(
+    repo: string,
+    branch: string,
+    runnerOptions: ExperimentRunnerOptions,
+    experiments: ExperimentSelection,
+    token?: string,
+  ) {
+    this.repo = repo;
+    this.branch = branch;
+    this.token = token;
+    this.experimentOptions = runnerOptions;
+    this.experiments = experiments;
   }
   /**
-   * Runs experiments using given DiffKemp 'version'.
+   * Run experiments and returns promise containing results.
    *
-   * @param pr True if the DiffKemp is PR's DiffKemp.
-   * @returns Promise containing result of the experiments.
+   * @param snapshotsCaching Option for setting caching of snapshots.
+   * @param snapshotsCaching.restore Key for restoring snapshots, if provided restores snapshots and
+   *   only compares them.
+   * @param snapshotsCaching.cache Key for caching snapshots, if provided caches snapshots after the
+   *   experiments are done.
    */
-  private async runExperiments(diffkemp: DiffKemp, pr: boolean) {
-    await diffkemp.setup(this.config.token);
-    if (pr && !this.config.options?.rebuild) {
-      // Try to firstly recover snapshot from 'master', so we can skip build phase.
-      const llvmVersion = await diffkemp.getLlvmVersion();
-      const snapshotKey = `${this.config.baseSHA}-llvm${llvmVersion}`;
-      this.config.logger.trace("Trying to restore snapshots to PR container");
-      await Cache.restoreSnapshots(snapshotKey, diffkemp.container);
-    } else {
-      // Try to check if base results are not cached.
-      const result = await Cache.restoreResults(this.config.baseSHA);
-      if (result) {
-        this.config.logger.trace("Restored base results from cache");
-        return result;
-      }
+  async runExperiments(snapshotsCaching?: { restore?: string; cache?: string }) {
+    using container = new Container();
+    const diffkemp = new DiffKemp(container, this.repo, this.branch);
+    await diffkemp.setup(this.token);
+    if (snapshotsCaching?.restore) {
+      await this.restoreSnapshots(diffkemp, snapshotsCaching.restore);
     }
-    const eqbench = new EqBenchRunner(diffkemp);
-    let options = {};
-    if (pr) {
-      options = {
-        cmpOpts: this.config.options?.prCmpOpt,
-      };
+    const runners = this.getRunners(diffkemp);
+    const resultsPromises: Promise<ExperimentResults>[] = [];
+    runners.forEach((runner) => {
+      resultsPromises.push(runner.run(this.experimentOptions));
+    });
+    const results = await Promise.all(resultsPromises);
+    if (snapshotsCaching?.cache) {
+      await this.cacheSnapshots(diffkemp, snapshotsCaching.cache);
     }
-    const result = await eqbench.run(options);
-    if (!pr) {
-      // Cache base results.
-      this.config.logger.trace(result, "Caching base results");
-      await Cache.cacheResults(this.config.baseSHA, result);
-      this.config.logger.trace(result, "Caching base snapshots");
-      const llvmVersion = await diffkemp.getLlvmVersion();
-      const snapshotKey = `${this.config.baseSHA}-llvm${llvmVersion}`;
-      await Cache.cacheSnapshots(snapshotKey, diffkemp.container);
-    }
-    return result;
+    return new EvaluationResults(results);
   }
+  private async restoreSnapshots(diffkemp: DiffKemp, sha: string) {
+    await Cache.restoreSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);
+  }
+  private async cacheSnapshots(diffkemp: DiffKemp, sha: string) {
+    await Cache.cacheSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);
+  }
+  /** Returns key for caching and restoring snapshots to/from cache. */
+  private async getSnapshotCacheKey(diffkemp: DiffKemp, sha: string) {
+    const llvmVersion = await diffkemp.getLlvmVersion();
+    const snapshotKey = `${sha}-llvm${llvmVersion}`;
+    return snapshotKey;
+  }
+  /** Returns runners for running experiments based on selected experiments. */
+  private getRunners(diffkemp: DiffKemp): ExperimentRunner[] {
+    const runners = new Array<ExperimentRunner>();
+    if (this.experiments.eqbench) {
+      runners.push(new EqBenchRunner(diffkemp));
+    }
+    return runners;
+  }
+}
+/** Format for selecting experiments which should be run. */
+class ExperimentSelection {
+  eqbench = true;
 }
