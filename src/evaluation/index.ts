@@ -24,6 +24,12 @@ export class Evaluation {
   constructor(config: EvaluationConfig) {
     this.config = config;
     this.selectedExperiments = new ExperimentSelection();
+    if (config.options?.run) {
+      const exp = config.options.run;
+      this.selectedExperiments.eqbench = exp.includes("eqbench");
+      this.selectedExperiments.rhelFunctions = exp.includes("rhel-functions");
+      this.selectedExperiments.rhelSysctl = exp.includes("rhel-sysctl");
+    }
   }
   /**
    * Runs evaluation and returns promise containing report of the evaluation.

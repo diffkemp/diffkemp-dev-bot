@@ -11,7 +11,7 @@ import {
   getPRRepoAndBranch,
 } from "../utils/comments.js";
 import { parse } from "shell-quote";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 
 /**
  * Text in a comment on a PR which launches evaluation of the PR.
@@ -119,6 +119,8 @@ interface EvaluationOptions {
   prCmpOpt?: string[];
   /** Rebuild snapshots on PR, respectively do not recover snapshots from cache. */
   rebuild?: boolean;
+  /** Experiments to be run */
+  run?: ("eqbench" | "rhel-sysctl" | "rhel-functions")[];
 }
 
 /** Error thrown when error occurs while parsing user options. */
@@ -137,6 +139,13 @@ class EvaluationCommandParser {
     this.parser
       .name("\\evaluate")
       .description("Evaluator of pull requests")
+      .addOption(
+        new Option("--run <experiments...>", "selection of experiments to be run").choices([
+          "eqbench",
+          "rhel-sysctl",
+          "rhel-functions",
+        ]),
+      )
       .option("--pr-cmp-opt <options...>", "option to add options for PR's `compare` command")
       .option("--rebuild", "rebuild snapshots for comparisons on PR")
       .showHelpAfterError()
