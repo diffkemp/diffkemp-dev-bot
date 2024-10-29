@@ -117,6 +117,8 @@ interface EvaluationConfigParams {
 interface EvaluationOptions {
   /** Comparison options to use by PR's DiffKemp. */
   prCmpOpt?: string[];
+  /** Comparison options to use both by PR's and base DiffKemp. */
+  cmpOpt?: string[];
   /** Rebuild snapshots on PR, respectively do not recover snapshots from cache. */
   rebuild?: boolean;
   /** Experiments to be run */
@@ -147,6 +149,7 @@ class EvaluationCommandParser {
         ]),
       )
       .option("--pr-cmp-opt <options...>", "option to add options for PR's `compare` command")
+      .option("--cmp-opt <options...>", "option to add options for `compare` command")
       .option("--rebuild", "rebuild snapshots for comparisons on PR")
       .showHelpAfterError()
       // Saving output to variable instead of printing.

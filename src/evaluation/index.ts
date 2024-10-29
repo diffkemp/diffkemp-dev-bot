@@ -40,9 +40,14 @@ export class Evaluation {
     if (this.config.prRepo === undefined || this.config.prBranch === undefined) {
       throw new Error("Info about PR must be provided in the config!");
     }
-    const prRunnerOptions: ExperimentRunnerOptions = {
-      cmpOpts: this.config.options?.prCmpOpt,
-    };
+    const prRunnerOptions: ExperimentRunnerOptions = {};
+    prRunnerOptions.cmpOpts = [];
+    if (this.config.options?.prCmpOpt) {
+      prRunnerOptions.cmpOpts.push(...this.config.options.prCmpOpt);
+    }
+    if (this.config.options?.cmpOpt) {
+      prRunnerOptions.cmpOpts.push(...this.config.options.cmpOpt);
+    }
     const prCachingOption = {
       restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
     };
@@ -67,16 +72,24 @@ export class Evaluation {
    * all experiments and caching the results.
    */
   private async restoreOrRunBase() {
-    let results = await EvaluationResults.restoreFromCache(this.config.baseSHA);
-    if (results) return results;
+    const additionalCompareOptions = this.config.options?.cmpOpt?.length !== 0;
+    if (!additionalCompareOptions) {
+      // Recover results only if additional compare options are not supplied.
+      const results = await EvaluationResults.restoreFromCache(this.config.baseSHA);
+      if (results) return results;
+    }
     const baseEvaluation = new VersionEvaluation(
       this.config.baseRepo,
       this.config.baseBranch,
-      {},
+      { cmpOpts: this.config.options?.cmpOpt },
       new ExperimentSelection(),
       this.config.token,
     );
-    results = await baseEvaluation.runExperiments({ cache: this.config.baseSHA });
+    // Note: Try to also restore snapshots from cache - e.g. case when evaluation with user supplied comparison options.
+    const results = await baseEvaluation.runExperiments({
+      cache: additionalCompareOptions ? undefined : this.config.baseSHA,
+      restore: this.config.baseSHA,
+    });
     await results.cache(this.config.baseSHA);
     return results;
   }
