@@ -4,7 +4,7 @@
  * @author Lukas Petr
  */
 import { existsSync } from "fs";
-import { mkdir, readdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { IContainer } from "../container.js";
 import { ExperimentResults } from "./experiments/experiment.js";
@@ -12,6 +12,7 @@ import { ExperimentResults } from "./experiments/experiment.js";
 /** Class for caching files and restoring them. */
 export class Cache {
   static readonly CACHE_DIR = ".cache/";
+  static cacheOnlyLastSnapshot = true;
   /** Caches results of experiment. */
   static async cacheResults(key: string, results: ExperimentResults) {
     const dir = join(Cache.CACHE_DIR, "results", key);
@@ -58,6 +59,20 @@ export class Cache {
       return;
     }
     await container.copyFrom("/experiments/snapshots", dir);
+    if (Cache.cacheOnlyLastSnapshot) {
+      await Cache.removeSnapshots(key);
+    }
+  }
+  /** Removes all snapshots except the one specified by key. */
+  private static async removeSnapshots(key: string) {
+    // Leaving only current snapshot
+    const dirNames = await readdir(join(Cache.CACHE_DIR, "snapshots"));
+    for (const dirName of dirNames) {
+      if (dirName !== key) {
+        const path = join(Cache.CACHE_DIR, "snapshots", dirName);
+        await rm(path, { recursive: true });
+      }
+    }
   }
   /**
    * Tries to restore snapshots from the cache to the container.
