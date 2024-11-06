@@ -32,7 +32,7 @@ export class Evaluation {
     }
   }
   /**
-   * Runs evaluation and returns promise containing report of the evaluation.
+   * Runs evaluation and returns promise with results of the evaluation.
    *
    * @note This method can be called only when info about PR is provided in the config.
    */
@@ -64,8 +64,8 @@ export class Evaluation {
 
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
 
-    const report = prResults.compare(baseResults).report();
-    return report;
+    const results = prResults.compare(baseResults);
+    return results;
   }
   /**
    * Tries to restore results for base DiffKemp, if results do not exists launching evaluation of

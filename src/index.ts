@@ -49,8 +49,10 @@ async function evaluate(context: Context<"issue_comment.created">) {
   await createCommentReaction(context);
   try {
     const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
-    const report = await evaluation.run();
-    await createComment(context, report);
+    const results = await evaluation.run();
+    for (const result of results.differences) {
+      await createComment(context, result.report());
+    }
   } catch (error) {
     if (error instanceof CommandParserError) {
       await createComment(context, "```\n" + error.message + "\n```");
