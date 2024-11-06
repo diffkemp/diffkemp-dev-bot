@@ -4,6 +4,7 @@
  * @author Lukas Petr
  */
 import { execFile, execSync } from "child_process";
+import { join } from "path";
 import { promisify } from "util";
 
 const execFilePromisify = promisify(execFile);
@@ -21,6 +22,10 @@ export class Container implements Disposable, IContainer {
     this.id = execSync("podman run -di diffkemp-prs:latest", {
       encoding: "utf-8",
     }).trim();
+  }
+  /** Rebuilds container image. */
+  public static async rebuildImage() {
+    await execFilePromisify(join(import.meta.dirname, "../create_image.sh"));
   }
   /**
    * Runs command inside the container.

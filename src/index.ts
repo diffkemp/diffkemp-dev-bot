@@ -11,6 +11,8 @@ import {
 } from "./utils/comments.js";
 import { Evaluation } from "./evaluation/index.js";
 import { CommandParserError, EVALUATION_REGEX, EvaluationConfig } from "./evaluation/config.js";
+import { updatesNix } from "./utils/push.js";
+import { Container } from "./container.js";
 
 /** Main function run by the Probot framework. */
 export default (app: Probot) => {
@@ -69,6 +71,10 @@ async function pushHandler(context: Context<"push">) {
 /** Handles pushes to master/default branch. */
 async function pushToMasterHandler(context: Context<"push">) {
   context.log.info("Push to default branch");
+  if (updatesNix(context)) {
+    context.log.info("Rebuilding container image");
+    await Container.rebuildImage();
+  }
   const evaluation = new Evaluation(await EvaluationConfig.fromPushToMaster(context));
   await evaluation.runOnlyBase();
 }
