@@ -1,0 +1,126 @@
+old-snapshot: /snapshots/linux-4.18.0-372.9.1.el8/
+new-snapshot: /snapshots/linux-4.18.0-425.3.1.el8/
+results:
+  - function: __alloc_pages_nodemask
+    diffs:
+      - function: __alloc_pages_slowpath
+        old-callstack:
+          - name: __alloc_pages_slowpath
+            file: mm/page_alloc.c
+            line: 4954
+        new-callstack:
+          - name: __alloc_pages_slowpath
+            file: mm/page_alloc.c
+            line: 4968
+      - function: pv_queued_spin_unlock
+        old-callstack:
+          - name: get_page_from_freelist
+            file: mm/page_alloc.c
+            line: 4934
+          - name: rmqueue
+            file: mm/page_alloc.c
+            line: 3862
+          - name: spin_unlock
+            file: mm/page_alloc.c
+            line: 3464
+          - name: __raw_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 390
+          - name: do_raw_spin_unlock
+            file: ./include/linux/spinlock_api_smp.h
+            line: 142
+          - name: queued_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 203
+          - name: pv_queued_spin_unlock
+            file: ./arch/x86/include/asm/qspinlock.h
+            line: 56
+        new-callstack:
+          - name: get_page_from_freelist
+            file: mm/page_alloc.c
+            line: 4948
+          - name: rmqueue
+            file: mm/page_alloc.c
+            line: 3863
+          - name: spin_unlock
+            file: mm/page_alloc.c
+            line: 3463
+          - name: __raw_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 390
+          - name: do_raw_spin_unlock
+            file: ./include/linux/spinlock_api_smp.h
+            line: 142
+          - name: queued_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 203
+          - name: pv_queued_spin_unlock
+            file: ./arch/x86/include/asm/qspinlock.h
+            line: 56
+  - function: __alloc_skb
+    diffs:
+      - function: __alloc_skb
+        old-callstack: []
+        new-callstack: []
+  - function: __alloc_workqueue_key
+    diffs:
+      - function: pv_queued_spin_unlock
+        old-callstack:
+          - name: alloc_workqueue
+            file: kernel/workqueue.c
+            line: 4335
+          - name: destroy_workqueue
+            file: kernel/workqueue.c
+            line: 4317
+          - name: __raw_spin_unlock_irq
+            file: kernel/workqueue.c
+            line: 4409
+          - name: do_raw_spin_unlock
+            file: ./include/linux/spinlock_api_smp.h
+            line: 158
+          - name: queued_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 203
+          - name: pv_queued_spin_unlock
+            file: ./arch/x86/include/asm/qspinlock.h
+            line: 56
+        new-callstack:
+          - name: alloc_workqueue
+            file: kernel/workqueue.c
+            line: 4335
+          - name: destroy_workqueue
+            file: kernel/workqueue.c
+            line: 4317
+          - name: __raw_spin_unlock_irq
+            file: kernel/workqueue.c
+            line: 4409
+          - name: do_raw_spin_unlock
+            file: ./include/linux/spinlock_api_smp.h
+            line: 158
+          - name: queued_spin_unlock
+            file: ./include/linux/spinlock.h
+            line: 203
+          - name: pv_queued_spin_unlock
+            file: ./arch/x86/include/asm/qspinlock.h
+            line: 56
+definitions:
+  __remove_hrtimer:
+    kind: function
+    old:
+      line: 998
+      file: kernel/time/hrtimer.c
+      end-line: 1022
+    new:
+      line: 1119
+      file: kernel/time/hrtimer.c
+      end-line: 1144
+  skb_copy_ubufs:
+    kind: function
+    old:
+      line: 1356
+      file: net/core/skbuff.c
+      end-line: 1427
+    new:
+      line: 1404
+      file: net/core/skbuff.c
+      end-line: 1475
