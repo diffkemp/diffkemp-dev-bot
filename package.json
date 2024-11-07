@@ -7,9 +7,9 @@
     "build": "tsc",
     "start": "probot run ./lib/index.js",
     "test": "vitest",
-    "lint": "eslint src/",
-    "format": "prettier src/ --write",
-    "format:check": "prettier src/ --check"
+    "lint": "eslint src/ tests/",
+    "format": "prettier src/ tests/ --write",
+    "format:check": "prettier src/ tests/ --check"
   },
   "dependencies": {
     "commander": "^12.1.0",
