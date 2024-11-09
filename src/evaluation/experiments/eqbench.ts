@@ -177,7 +177,7 @@ export class EqBenchResult extends ExperimentResult {
   }
 
   /** Represents results in JSON format, used for caching of results. */
-  public toJSON() {
+  public toJSON(): EqBenchCachedResult {
     return {
       description: this.description,
       comparisonRuntime: this.comparisonRuntime,

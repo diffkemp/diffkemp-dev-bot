@@ -144,6 +144,10 @@ export class ExperimentDifferences {
   public add(difference: ExperimentDifference) {
     this.differences.set(difference.description, difference);
   }
+  /** Gets difference with given description. */
+  public get(description: string) {
+    return this.differences.get(description);
+  }
   /**
    * Returns string with report about differences of evaluation done by using multiple
    * configuration/versions between base branch and pr branch.

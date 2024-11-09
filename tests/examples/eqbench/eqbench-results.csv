@@ -1,0 +1,6 @@
+type;benchmark;program;expected;result
+program-level;CLEVER;LoopUnreach15;Eq;FP
+program-level;CLEVER;LoopUnreach10;Eq;FP
+program-level;CLEVER;Const;Eq;TN
+function-level;ej_hash;hashCode;Neq;TP
+aggregated;airy;airy;Neq;FN
