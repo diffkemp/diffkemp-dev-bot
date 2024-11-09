@@ -1,0 +1,189 @@
+/** Testing of evaluation. */
+import nock from "nock";
+import { Probot, ProbotOctokit } from "probot";
+import { afterEach, describe, expect, test, vi } from "vitest";
+
+/** Creates payload for comment created event with given comment. */
+const createIssueCommentPayload = (comment: string) => ({
+  event: "issue_comment",
+  payload: {
+    action: "created",
+    issue: {
+      title: "Test PR bot",
+      user: {
+        login: "User1234",
+        type: "User",
+        user_view_type: "public",
+        site_admin: false,
+      },
+      pull_request: {},
+    },
+    comment: {
+      author_association: "OWNER",
+      user: {
+        login: "User1234",
+        type: "User",
+        user_view_type: "public",
+        site_admin: false,
+      },
+      body: comment,
+      events: ["issue_comment", "push"],
+    },
+    repository: {
+      owner: {
+        login: "diffkemp",
+      },
+      name: "diffkemp",
+      full_name: "diffkemp/diffkemp",
+      private: false,
+      default_branch: "master",
+    },
+    sender: {
+      login: "User1234",
+      type: "User",
+      user_view_type: "public",
+      site_admin: false,
+    },
+    installation: {
+      id: 55627600,
+      node_id: "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTU2Mjc2MDA=",
+    },
+  },
+});
+
+describe("Evaluation initiation", async () => {
+  nock.disableNetConnect();
+  const evaluateMock = vi.fn().mockResolvedValue(undefined);
+  vi.doMock(import("../../src/evaluation/index.js"), async (importOriginal) => {
+    const originalModule = await importOriginal();
+    return {
+      ...originalModule,
+      evaluate: evaluateMock,
+    };
+  });
+  const probot = new Probot({
+    githubToken: "test",
+    Octokit: ProbotOctokit.defaults((instanceOptions: unknown) => {
+      return {
+        ...instanceOptions!,
+        retry: { enabled: false },
+        throttle: { enabled: false },
+      };
+    }),
+  });
+  const { default: app } = await import("../../src/index.js");
+  app(probot);
+
+  test("evaluation should not be run for user with read permission", async () => {
+    const permissionResponse = {
+      permission: "read",
+      user: {
+        login: "UserReader",
+        type: "User",
+        user_view_type: "public",
+        site_admin: false,
+        permissions: {
+          admin: false,
+          maintain: false,
+          push: false,
+          triage: false,
+          pull: true,
+        },
+        role_name: "read",
+      },
+      role_name: "read",
+    };
+    nock("https://api.github.com/")
+      .get("/repos/diffkemp/diffkemp/collaborators/User1234/permission")
+      .reply(200, permissionResponse);
+    await probot.receive({
+      name: "issue_comment",
+      payload: createIssueCommentPayload("\\evaluate").payload,
+    } as never);
+    await expect.poll(() => evaluateMock).not.toBeCalled();
+  });
+
+  test("evaluation should be run for user with write permission", async () => {
+    const permissionResponse = {
+      permission: "write",
+      user: {
+        login: "UserWriter",
+        permissions: {
+          admin: false,
+          maintain: false,
+          push: true,
+          triage: true,
+          pull: true,
+        },
+        role_name: "write",
+      },
+      role_name: "write",
+    };
+    nock("https://api.github.com/")
+      .get("/repos/diffkemp/diffkemp/collaborators/User1234/permission")
+      .reply(200, permissionResponse);
+    await probot.receive({
+      name: "issue_comment",
+      payload: createIssueCommentPayload("\\evaluate").payload,
+    } as never);
+    await expect.poll(() => evaluateMock).toBeCalled();
+  });
+
+  test("evaluation should be run for user with admin permission", async () => {
+    const permissionResponse = {
+      permission: "admin",
+      user: {
+        login: "UserAdmin",
+        permissions: {
+          admin: true,
+          maintain: true,
+          push: true,
+          triage: true,
+          pull: true,
+        },
+        role_name: "admin",
+      },
+      role_name: "admin",
+    };
+    nock("https://api.github.com/")
+      .get("/repos/diffkemp/diffkemp/collaborators/User1234/permission")
+      .reply(200, permissionResponse);
+    await probot.receive({
+      name: "issue_comment",
+      payload: createIssueCommentPayload("\\evaluate").payload,
+    } as never);
+    await expect.poll(() => evaluateMock).toBeCalled();
+  });
+
+  test("evaluation should be run if it does not contain word evaluation", async () => {
+    const permissionResponse = {
+      permission: "admin",
+      user: {
+        login: "UserAdmin",
+        permissions: {
+          admin: true,
+          maintain: true,
+          push: true,
+          triage: true,
+          pull: true,
+        },
+        role_name: "admin",
+      },
+      role_name: "admin",
+    };
+    nock("https://api.github.com/")
+      .get("/repos/diffkemp/diffkemp/collaborators/User1234/permission")
+      .reply(200, permissionResponse);
+    await probot.receive({
+      name: "issue_comment",
+      payload: createIssueCommentPayload("test").payload,
+    } as never);
+    await expect.poll(() => evaluateMock).not.toBeCalled();
+  });
+
+  afterEach(() => {
+    evaluateMock.mockRestore();
+    nock.cleanAll();
+    nock.enableNetConnect();
+  });
+});
