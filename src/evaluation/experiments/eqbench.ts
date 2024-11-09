@@ -21,6 +21,16 @@ import {
 } from "./experiment.js";
 import { ExperimentTitle } from "./titles.js";
 
+/** Configuration of EqBench runner. */
+interface EqBenchConfig {
+  /** Program to be compared (mainly for testing). */
+  program?: string;
+  /** Run comparison using snapshots gained by default optimization. */
+  default: boolean;
+  /** Run comparison using snapshots gained by O2 optimization. */
+  O2: boolean;
+}
+
 /** Class for executing DiffKemp on EqBench benchmarks. */
 export class EqBenchRunner implements ExperimentRunner {
   /** Path to EqBench dataset. */
@@ -32,10 +42,13 @@ export class EqBenchRunner implements ExperimentRunner {
   /** Path to directory where results will be saved. */
   static readonly RESULTS_PATH = "/experiments/results/eqbench";
   private diffkemp;
+  /** Configuration of the runner. */
+  private config: EqBenchConfig;
 
   /** Prepares experiment for running. */
-  constructor(diffkemp: DiffKemp) {
+  constructor(diffkemp: DiffKemp, config: EqBenchConfig = { O2: true, default: true }) {
     this.diffkemp = diffkemp;
+    this.config = config;
   }
 
   /**
@@ -53,13 +66,24 @@ export class EqBenchRunner implements ExperimentRunner {
         commandOptions.push(`--add-cmp-opt=${opt}`);
       });
     }
-    const defaultResultPromise = this.buildAndCompare("default optimization", commandOptions);
-    const optResultPromise = this.buildAndCompare("-O2 optimization", [
-      ...commandOptions,
-      "--no-opt-override",
-      "--add-clang-options=-O2",
-    ]);
-    const results = await Promise.all([defaultResultPromise, optResultPromise]);
+    // Compare only certain program.
+    if (this.config.program) {
+      commandOptions.push(`--program=${this.config.program}`);
+    }
+    const promises = [];
+    if (this.config.default) {
+      promises.push(this.buildAndCompare("default optimization", commandOptions));
+    }
+    if (this.config.O2) {
+      promises.push(
+        this.buildAndCompare("-O2 optimization", [
+          ...commandOptions,
+          "--no-opt-override",
+          "--add-clang-options=-O2",
+        ]),
+      );
+    }
+    const results = await Promise.all(promises);
     return new EqBenchResults(ExperimentTitle.EQBENCH, results);
   }
 
