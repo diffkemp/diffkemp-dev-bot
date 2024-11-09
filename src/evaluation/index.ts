@@ -4,10 +4,12 @@
  * @author Lukas Petr
  */
 
+import { Context } from "probot";
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
+import { createComment, createCommentReaction } from "../utils/comments.js";
 import { Cache } from "./cache.js";
-import { EvaluationConfig } from "./config.js";
+import { CommandParserError, EvaluationConfig } from "./config.js";
 import { EvaluationResults } from "./evaluation_results.js";
 import { EqBenchRunner } from "./experiments/eqbench.js";
 import {
@@ -16,6 +18,25 @@ import {
   ExperimentRunnerOptions,
 } from "./experiments/experiment.js";
 import { RHELRunner } from "./experiments/rhel.js";
+
+/** Evaluates impact of a PR on a DiffKemp equivalence checking. */
+export async function evaluate(context: Context<"issue_comment.created">) {
+  await createCommentReaction(context);
+  try {
+    const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
+    const results = await evaluation.run();
+    for (const result of results.differences) {
+      await createComment(context, result.report());
+    }
+  } catch (error) {
+    if (error instanceof CommandParserError) {
+      await createComment(context, "```\n" + error.message + "\n```");
+      return;
+    }
+    await createComment(context, "`Error occurred while running evaluation.`");
+    context.log.error(error);
+  }
+}
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {

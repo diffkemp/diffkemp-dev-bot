@@ -4,13 +4,9 @@
  * @author Lukas Petr
  */
 import { Context, Probot } from "probot";
-import {
-  checkCommenterPermission,
-  createComment,
-  createCommentReaction,
-} from "./utils/comments.js";
-import { Evaluation } from "./evaluation/index.js";
-import { CommandParserError, EVALUATION_REGEX, EvaluationConfig } from "./evaluation/config.js";
+import { checkCommenterPermission } from "./utils/comments.js";
+import { evaluate, Evaluation } from "./evaluation/index.js";
+import { EVALUATION_REGEX, EvaluationConfig } from "./evaluation/config.js";
 import { updatesNix } from "./utils/push.js";
 import { Container } from "./container.js";
 
@@ -25,7 +21,7 @@ export default (app: Probot) => {
 };
 
 /** Handles when comment was created on an issue/PR. */
-async function issueCommentCreatedHandler(context: Context<"issue_comment.created">) {
+export async function issueCommentCreatedHandler(context: Context<"issue_comment.created">) {
   context.log.trace("Comment on a PR/issue");
   if (context.payload.sender.type === "Bot") {
     // Ignoring comments from bots.
@@ -44,24 +40,6 @@ async function issueCommentCreatedHandler(context: Context<"issue_comment.create
   }
 }
 
-/** Evaluates impact of a PR on a DiffKemp equivalence checking. */
-async function evaluate(context: Context<"issue_comment.created">) {
-  await createCommentReaction(context);
-  try {
-    const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
-    const results = await evaluation.run();
-    for (const result of results.differences) {
-      await createComment(context, result.report());
-    }
-  } catch (error) {
-    if (error instanceof CommandParserError) {
-      await createComment(context, "```\n" + error.message + "\n```");
-      return;
-    }
-    await createComment(context, "`Error occurred while running evaluation.`");
-    context.log.error(error);
-  }
-}
 /** Handles pushes to repository. */
 async function pushHandler(context: Context<"push">) {
   const defaultBranch = context.payload.repository.default_branch;
