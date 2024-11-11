@@ -101,6 +101,31 @@ export class EvaluationConfig {
       baseSHA,
     });
   }
+  /** Returns true if all experiments should be run. */
+  public runAllExperiments() {
+    if (!this.options?.run) return true;
+    else {
+      const allExperiments: Experiments[] = ["eqbench", "rhel-functions", "rhel-sysctl"];
+      return allExperiments.every((exp) => this.options?.run?.includes(exp));
+    }
+  }
+  /** Returns true if config contains additional options for base branch. */
+  public containsOptionsForBase() {
+    return this.options?.cmpOpt && this.options?.cmpOpt.length > 0;
+  }
+  /** Returns true if it should be tried to restore results for base branch. */
+  public restoreBaseResults() {
+    // Recover results only if additional compare options are not supplied.
+    return !this.containsOptionsForBase();
+  }
+  /** Returns true if results of the experiments on the base branch should be cached. */
+  public cacheBaseResults() {
+    return !this.containsOptionsForBase() && this.runAllExperiments();
+  }
+  /** Returns true if snapshots of the experiments on the base branch should be cached. */
+  public cacheBaseSnapshots() {
+    return this.runAllExperiments();
+  }
 }
 interface EvaluationConfigParams {
   prRepo?: string;
@@ -122,8 +147,10 @@ interface EvaluationOptions {
   /** Rebuild snapshots on PR, respectively do not recover snapshots from cache. */
   rebuild?: boolean;
   /** Experiments to be run */
-  run?: ("eqbench" | "rhel-sysctl" | "rhel-functions")[];
+  run?: Experiments[];
 }
+/** List of possible experiments. */
+type Experiments = "eqbench" | "rhel-sysctl" | "rhel-functions";
 
 /** Error thrown when error occurs while parsing user options. */
 export class CommandParserError extends Error {

@@ -93,9 +93,7 @@ export class Evaluation {
    * all experiments and caching the results.
    */
   private async restoreOrRunBase() {
-    const additionalCompareOptions = this.config.options?.cmpOpt?.length !== 0;
-    if (!additionalCompareOptions) {
-      // Recover results only if additional compare options are not supplied.
+    if (this.config.restoreBaseResults()) {
       const results = await EvaluationResults.restoreFromCache(this.config.baseSHA);
       if (results) return results;
     }
@@ -103,15 +101,18 @@ export class Evaluation {
       this.config.baseRepo,
       this.config.baseBranch,
       { cmpOpts: this.config.options?.cmpOpt },
-      new ExperimentSelection(),
+      this.selectedExperiments,
       this.config.token,
     );
+
     // Note: Try to also restore snapshots from cache - e.g. case when evaluation with user supplied comparison options.
     const results = await baseEvaluation.runExperiments({
-      cache: additionalCompareOptions ? undefined : this.config.baseSHA,
+      cache: this.config.cacheBaseSnapshots() ? this.config.baseSHA : undefined,
       restore: this.config.baseSHA,
     });
-    await results.cache(this.config.baseSHA);
+    if (this.config.cacheBaseResults()) {
+      await results.cache(this.config.baseSHA);
+    }
     return results;
   }
   /** Runs experiments only on a base branch, caches the results and returns promise with results. */
