@@ -5,6 +5,7 @@
  */
 
 import { markdownTable } from "markdown-table";
+import { Label, LabelGroup, LabelGroups } from "../../utils/labels.js";
 import { ExperimentTitle } from "./titles.js";
 import { DefaultCachedResults } from "./default.js";
 import { EqBenchCachedResults } from "./eqbench.js";
@@ -176,5 +177,13 @@ ${detailedReports.join("\n")}
 
 </details>
     `;
+  }
+  /** Get labels describing the differences, this should be overridden by child classes. */
+  public getLabels(): Label[] {
+    return [];
+  }
+  /** Get group of labels which can be returned by getLabels. */
+  public getLabelGroup(): LabelGroup {
+    return LabelGroups[this.getTitle()];
   }
 }

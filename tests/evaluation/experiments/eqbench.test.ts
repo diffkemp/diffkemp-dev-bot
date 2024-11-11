@@ -14,6 +14,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { DiffKemp } from "../../../src/diffkemp.js";
 import { ExperimentTitle } from "../../../src/evaluation/experiments/titles.js";
+import { LabelGroups } from "../../../src/utils/labels.js";
 
 describe("EqBenchRunner", () => {
   test(
@@ -113,6 +114,9 @@ describe("EqBench results", () => {
     expect(reportLine[4]).toMatch(/^\D*1\D*red\D*\+2\D*$/);
     // comparison time
     expect(reportLine[5]).toMatch(/^\D*90\D*red\D*\+2\D*$/);
+    // Test labels
+    expect(differences.getLabels()).contains(LabelGroups[ExperimentTitle.EQBENCH].MORE_FN_OR_FP);
+    expect(differences.getLabelGroup()).toBe(LabelGroups[ExperimentTitle.EQBENCH]);
   });
 
   test("it should be able to serialize results and back deserialize them", async () => {

@@ -225,7 +225,7 @@ export class EqBenchResults extends ExperimentResults {
   }
   protected createDifferences() {
     const header = ["description", "TN", "FP", "TP", "FN", "compare runtime"];
-    return new ExperimentDifferences(this.title, header);
+    return new EqBenchDifferences(this.title, header);
   }
 }
 
@@ -335,6 +335,25 @@ ${this.getProgramList(this.perProgram.FN)}
   /** Returns program from line from `eqbench-results.csv` file. */
   private getProgramURL(program: string) {
     return `https://github.com/shrBadihi/EqBench/tree/main/benchmarks/${program}`;
+  }
+}
+
+class EqBenchDifferences extends ExperimentDifferences {
+  /** Returns labels for found differences. */
+  override getLabels() {
+    const differences = [...this.differences.values()] as EqBenchDifference[];
+    const labelGroup = this.getLabelGroup();
+    let label = labelGroup.STABLE;
+    if (differences.some((d) => d.total.FN > 0)) {
+      label = labelGroup.MORE_FN_OR_FP!;
+    } else if (differences.some((d) => d.total.FP > 0)) {
+      label = labelGroup.MORE_FN_OR_FP!;
+    } else if (differences.some((d) => d.total.TP > 0)) {
+      label = labelGroup.MORE_TN_OR_TP!;
+    } else if (differences.some((d) => d.total.TN > 0)) {
+      label = labelGroup.MORE_TN_OR_TP!;
+    }
+    return [label];
   }
 }
 

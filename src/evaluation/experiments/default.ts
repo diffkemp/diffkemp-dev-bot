@@ -80,7 +80,7 @@ export class DefaultResults extends ExperimentResults {
       "total differences",
       "compare runtime",
     ];
-    return new ExperimentDifferences(this.title, header);
+    return new DefaultDifferences(this.title, header);
   }
 }
 /** Class for representing difference between two results. */
@@ -149,6 +149,28 @@ ${this.differencesCmp.reportDiffering()}
     `;
   }
 }
+
+export class DefaultDifferences extends ExperimentDifferences {
+  /** Returns label for found differences. */
+  override getLabels() {
+    const labelGroup = this.getLabelGroup();
+    let label = labelGroup.STABLE;
+    const differences = [...this.differences.values()] as DefaultDifference[];
+    if (differences.some((d) => d.statistics.errors > 0)) {
+      label = labelGroup.MORE_NEQ_UNK_OR_ERR!;
+    } else if (differences.some((d) => d.statistics.unknown > 0)) {
+      label = labelGroup.MORE_NEQ_UNK_OR_ERR!;
+    } else if (differences.some((d) => d.statistics.notEqual > 0)) {
+      label = labelGroup.MORE_NEQ_UNK_OR_ERR!;
+    } else if (differences.some((d) => d.statistics.totalDifferences > 0)) {
+      label = labelGroup.MORE_EQ_OR_DIFF!;
+    } else if (differences.some((d) => d.statistics.equal > 0)) {
+      label = labelGroup.MORE_EQ_OR_DIFF!;
+    }
+    return [label];
+  }
+}
+
 /** Format of multiple results for saving to cache. */
 export interface DefaultCachedResults {
   title: string;

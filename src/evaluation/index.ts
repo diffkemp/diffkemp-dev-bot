@@ -18,6 +18,7 @@ import {
   ExperimentRunnerOptions,
 } from "./experiments/experiment.js";
 import { RHELRunner } from "./experiments/rhel.js";
+import { createLabelsOnIssue, removeLabelsOnIssue } from "../utils/labels.js";
 
 /** Evaluates impact of a PR on a DiffKemp equivalence checking. */
 export async function evaluate(context: Context<"issue_comment.created">) {
@@ -26,7 +27,13 @@ export async function evaluate(context: Context<"issue_comment.created">) {
     const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
     const results = await evaluation.run();
     for (const result of results.differences) {
+      const labelGroup = result.getLabelGroup();
+      if (labelGroup) {
+        await removeLabelsOnIssue(context, labelGroup);
+      }
       await createComment(context, result.report());
+      const labels = result.getLabels();
+      await createLabelsOnIssue(context, labels);
     }
   } catch (error) {
     if (error instanceof CommandParserError) {
