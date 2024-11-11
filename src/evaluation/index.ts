@@ -7,7 +7,7 @@
 import { Context } from "probot";
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
-import { createComment, createCommentReaction } from "../utils/comments.js";
+import { createComment, createCommentReaction, createCommitStatuses } from "../utils/comments.js";
 import { Cache } from "./cache.js";
 import { CommandParserError, EvaluationConfig } from "./config.js";
 import { EvaluationResults } from "./evaluation_results.js";
@@ -34,6 +34,7 @@ export async function evaluate(context: Context<"issue_comment.created">) {
       await createComment(context, result.report());
       const labels = result.getLabels();
       await createLabelsOnIssue(context, labels);
+      await createCommitStatuses(context, labels);
     }
   } catch (error) {
     if (error instanceof CommandParserError) {

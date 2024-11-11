@@ -4,6 +4,7 @@
  * @author Lukas Petr
  */
 import { Context } from "probot";
+import { Label, LabelType } from "./labels.js";
 
 /**
  * Checks the commenter's permissions on the repository.
@@ -82,4 +83,24 @@ export async function getDefaultBranchSHA(context: Context<"issue_comment">) {
     context.repo({ branch: context.payload.repository.default_branch }),
   );
   return response.data.commit.sha;
+}
+
+/** Adds commit status to a PR. */
+export async function createStatus(context: Context<"issue_comment">, label: Label) {
+  const { data } = await context.octokit.pulls.get(context.pullRequest());
+  const status = label.getType() === LabelType.FAILURE ? "failure" : "success";
+  await context.octokit.repos.createCommitStatus(
+    context.repo({
+      sha: data.head.sha,
+      state: status,
+      context: label.getGroupName(),
+      description: label.getDescription(),
+    }),
+  );
+}
+/** Creates commit statuses based on labels. */
+export async function createCommitStatuses(context: Context<"issue_comment">, labels: Label[]) {
+  for (const label of labels) {
+    await createStatus(context, label);
+  }
 }
