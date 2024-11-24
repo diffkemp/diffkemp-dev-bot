@@ -2,6 +2,7 @@
 import nock from "nock";
 import { Probot, ProbotOctokit } from "probot";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { EvaluationManager } from "../../src/evaluation/evaluation_manager.js";
 
 /** Creates payload for comment created event with given comment. */
 const createIssueCommentPayload = (comment: string) => ({
@@ -53,14 +54,9 @@ const createIssueCommentPayload = (comment: string) => ({
 
 describe("Evaluation initiation", async () => {
   nock.disableNetConnect();
-  const evaluateMock = vi.fn().mockResolvedValue(undefined);
-  vi.doMock(import("../../src/evaluation/index.js"), async (importOriginal) => {
-    const originalModule = await importOriginal();
-    return {
-      ...originalModule,
-      evaluate: evaluateMock,
-    };
-  });
+  const evaluatePrMock = vi
+    .spyOn(EvaluationManager.prototype, "evaluatePr")
+    .mockImplementation(async () => Promise.resolve());
   const probot = new Probot({
     githubToken: "test",
     Octokit: ProbotOctokit.defaults((instanceOptions: unknown) => {
@@ -100,7 +96,7 @@ describe("Evaluation initiation", async () => {
       name: "issue_comment",
       payload: createIssueCommentPayload("\\evaluate").payload,
     } as never);
-    await expect.poll(() => evaluateMock).not.toBeCalled();
+    await expect.poll(() => evaluatePrMock).not.toBeCalled();
   });
 
   test("evaluation should be run for user with write permission", async () => {
@@ -126,7 +122,7 @@ describe("Evaluation initiation", async () => {
       name: "issue_comment",
       payload: createIssueCommentPayload("\\evaluate").payload,
     } as never);
-    await expect.poll(() => evaluateMock).toBeCalled();
+    await expect.poll(() => evaluatePrMock).toBeCalled();
   });
 
   test("evaluation should be run for user with admin permission", async () => {
@@ -152,7 +148,7 @@ describe("Evaluation initiation", async () => {
       name: "issue_comment",
       payload: createIssueCommentPayload("\\evaluate").payload,
     } as never);
-    await expect.poll(() => evaluateMock).toBeCalled();
+    await expect.poll(() => evaluatePrMock).toBeCalled();
   });
 
   test("evaluation should be run if it does not contain word evaluation", async () => {
@@ -178,11 +174,11 @@ describe("Evaluation initiation", async () => {
       name: "issue_comment",
       payload: createIssueCommentPayload("test").payload,
     } as never);
-    await expect.poll(() => evaluateMock).not.toBeCalled();
+    await expect.poll(() => evaluatePrMock).not.toBeCalled();
   });
 
   afterEach(() => {
-    evaluateMock.mockRestore();
+    evaluatePrMock.mockClear();
     nock.cleanAll();
     nock.enableNetConnect();
   });

@@ -11,3 +11,16 @@ export function updatesNix(context: Context<"push">) {
   }
   return false;
 }
+
+/** Returns true if push updates branch (push can also update tag). */
+export function pushToBranch(context: Context<"push">) {
+  return context.payload.ref.startsWith("refs/heads");
+}
+
+/** Returns true if the push is push to default master branch. */
+export function isPushToDefaultBranch(context: Context<"push">) {
+  const { default_branch, fork } = context.payload.repository;
+  const ref = context.payload.ref;
+  // If fork is true it is a pull request.
+  return fork === false && `refs/heads/${default_branch}` === ref;
+}

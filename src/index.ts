@@ -5,10 +5,9 @@
  */
 import { Context, Probot } from "probot";
 import { checkCommenterPermission } from "./utils/comments.js";
-import { evaluate, Evaluation } from "./evaluation/index.js";
-import { EVALUATION_REGEX, EvaluationConfig } from "./evaluation/config.js";
-import { updatesNix } from "./utils/push.js";
-import { Container } from "./container.js";
+import { EVALUATION_REGEX } from "./evaluation/config.js";
+import { EvaluationManager } from "./evaluation/evaluation_manager.js";
+import { pushToBranch } from "./utils/push.js";
 
 /** Main function run by the Probot framework. */
 export default (app: Probot) => {
@@ -35,26 +34,14 @@ export async function issueCommentCreatedHandler(context: Context<"issue_comment
     if (evaluateComment && (await checkCommenterPermission(context, ["admin", "write"]))) {
       // Evaluation comment from user with write permission on a repo.
       context.log.info("Comment triggering evaluation");
-      await evaluate(context);
+      await EvaluationManager.getSingleton().evaluatePr(context);
     }
   }
 }
 
 /** Handles pushes to repository. */
 async function pushHandler(context: Context<"push">) {
-  const defaultBranch = context.payload.repository.default_branch;
-  const eventRef = context.payload.ref;
-  if (`refs/heads/${defaultBranch}` === eventRef) {
-    await pushToMasterHandler(context);
+  if (pushToBranch(context)) {
+    await EvaluationManager.getSingleton().pushToBranch(context);
   }
-}
-/** Handles pushes to master/default branch. */
-async function pushToMasterHandler(context: Context<"push">) {
-  context.log.info("Push to default branch");
-  if (updatesNix(context)) {
-    context.log.info("Rebuilding container image");
-    await Container.rebuildImage();
-  }
-  const evaluation = new Evaluation(await EvaluationConfig.fromPushToMaster(context));
-  await evaluation.runOnlyBase();
 }
