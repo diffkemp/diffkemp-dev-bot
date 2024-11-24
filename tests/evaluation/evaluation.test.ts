@@ -3,6 +3,10 @@ import nock from "nock";
 import { Probot, ProbotOctokit } from "probot";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { EvaluationManager } from "../../src/evaluation/evaluation_manager.js";
+import { Evaluation } from "../../src/evaluation/evaluation.js";
+import { EvaluationResults } from "../../src/evaluation/evaluation_results.js";
+import { EvaluationConfig } from "../../src/evaluation/config.js";
+import { pino } from "pino";
 
 /** Creates payload for comment created event with given comment. */
 const createIssueCommentPayload = (comment: string) => ({
@@ -48,6 +52,46 @@ const createIssueCommentPayload = (comment: string) => ({
     installation: {
       id: 55627600,
       node_id: "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTU2Mjc2MDA=",
+    },
+  },
+});
+
+const createPushPayload = (timestamp: string) => ({
+  event: "push",
+  payload: {
+    ref: "refs/heads/master",
+    before: "b0f2bcc72347462b5d83780ba6193e0e538f3e72",
+    after: "78df8672d6ecd9f363dbfedc480e059162aacf32",
+    repository: {
+      name: "diffkemp",
+      full_name: "diffkemp/diffkemp",
+      default_branch: "master",
+      master_branch: "master",
+      isPrivate: false,
+      fork: false,
+    },
+    sender: {
+      login: "User1234",
+      type: "User",
+      user_view_type: "public",
+      site_admin: false,
+    },
+    installation: { id: 55627600, node_id: "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTU2Mjc2MDA=" },
+    commits: [
+      {
+        message: "Commit message",
+        timestamp,
+        added: [],
+        removed: [],
+        modified: [],
+      },
+    ],
+    head_commit: {
+      message: "Commit message",
+      timestamp,
+      added: [],
+      removed: [],
+      modified: [],
     },
   },
 });
@@ -175,6 +219,29 @@ describe("Evaluation initiation", async () => {
       payload: createIssueCommentPayload("test").payload,
     } as never);
     await expect.poll(() => evaluatePrMock).not.toBeCalled();
+  });
+
+  test("on push evaluation should be run", async () => {
+    vi.spyOn(EvaluationConfig, "fromPushToMaster").mockImplementation(() =>
+      Promise.resolve(
+        new EvaluationConfig({
+          baseBranch: "master",
+          baseRepo: "diffkemp/diffkemp",
+          baseSHA: "",
+          logger: pino(),
+        }),
+      ),
+    );
+    const evaluationMock = vi
+      .spyOn(Evaluation.prototype, "runOnlyBase")
+      .mockImplementation(async () => Promise.resolve(new EvaluationResults([])));
+
+    await probot.receive({
+      name: "push",
+      payload: createPushPayload("2024-11-24T09:58:53+01:00").payload,
+    } as never);
+
+    await expect.poll(() => evaluationMock).toBeCalled();
   });
 
   afterEach(() => {
