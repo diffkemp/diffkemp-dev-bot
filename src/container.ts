@@ -16,12 +16,28 @@ const execFilePromisify = promisify(execFile);
  */
 export class Container implements Disposable, IContainer {
   /** Container ID. */
-  readonly id;
-  /** Creates new container. */
-  constructor() {
+  private id: string | null;
+  private abortSignal?: AbortSignal;
+  /** Event called when abort signal is 'send'. */
+  private abortEvent: EventListener;
+
+  /**
+   * Creates new container.
+   *
+   * @param abortSignal Signal for aborting/killing container.
+   */
+  constructor(abortSignal?: AbortSignal) {
     this.id = execSync("podman run -di diffkemp-prs:latest", {
       encoding: "utf-8",
     }).trim();
+    this.abortSignal = abortSignal;
+    this.abortEvent = () => {
+      this.killContainer();
+    };
+    abortSignal?.addEventListener("abort", this.abortEvent, { once: true });
+  }
+  public getId() {
+    return this.id;
   }
   /** Rebuilds container image. */
   public static async rebuildImage() {
@@ -36,10 +52,19 @@ export class Container implements Disposable, IContainer {
     if (command instanceof Array) {
       command = command.join(" ");
     }
-    const { stdout } = await execFilePromisify("podman", ["exec", this.id, "bash", "-c", command], {
-      encoding: "utf-8",
-    });
-    return stdout;
+    try {
+      const { stdout } = await execFilePromisify(
+        "podman",
+        ["exec", this.id!, "bash", "-c", command],
+        {
+          encoding: "utf-8",
+        },
+      );
+      return stdout;
+    } catch (e) {
+      this.abortSignal?.throwIfAborted();
+      throw e;
+    }
   }
   /** Returns promise with a content of a file from the container. */
   async readFile(path: string) {
@@ -55,11 +80,21 @@ export class Container implements Disposable, IContainer {
   }
   /** Copies file to container */
   async copyTo(srcPath: string, destPath: string = srcPath) {
-    await execFilePromisify("podman", ["cp", srcPath, `${this.id}:${destPath}`]);
+    try {
+      await execFilePromisify("podman", ["cp", srcPath, `${this.id}:${destPath}`]);
+    } catch (e) {
+      this.abortSignal?.throwIfAborted();
+      throw e;
+    }
   }
   /** Copies file from container */
   async copyFrom(srcPath: string, destPath: string = srcPath) {
-    await execFilePromisify("podman", ["cp", `${this.id}:${srcPath}`, destPath]);
+    try {
+      await execFilePromisify("podman", ["cp", `${this.id}:${srcPath}`, destPath]);
+    } catch (e) {
+      this.abortSignal?.throwIfAborted();
+      throw e;
+    }
   }
   /** Creates temporary directory in the container and returns path to it. */
   async mkdtemp(): Promise<string> {
@@ -67,8 +102,16 @@ export class Container implements Disposable, IContainer {
   }
   /** Stops and removes the container after `using` variable is out of scope. */
   [Symbol.dispose]() {
-    execSync(`podman stop ${this.id}`);
-    execSync(`podman rm ${this.id}`);
+    this.abortSignal?.removeEventListener("abort", this.abortEvent);
+    if (this.id) {
+      execSync(`podman kill ${this.id}`);
+      execSync(`podman rm -f ${this.id}`);
+    }
+  }
+  killContainer() {
+    execSync(`podman kill ${this.id}`);
+    execSync(`podman rm -f ${this.id}`);
+    this.id = null;
   }
 }
 

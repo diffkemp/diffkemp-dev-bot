@@ -6,6 +6,7 @@
 
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
+import { EvaluationAbort } from "./abort.js";
 import { Cache } from "./cache.js";
 import { EvaluationConfig } from "./config.js";
 import { EvaluationResults } from "./evaluation_results.js";
@@ -19,9 +20,11 @@ import { RHELRunner } from "./experiments/rhel.js";
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {
+  abortController: AbortController;
   config: EvaluationConfig;
   selectedExperiments: ExperimentSelection;
   constructor(config: EvaluationConfig) {
+    this.abortController = new AbortController();
     this.config = config;
     this.selectedExperiments = new ExperimentSelection();
     if (config.options?.run) {
@@ -37,6 +40,7 @@ export class Evaluation {
    * @note This method can be called only when info about PR is provided in the config.
    */
   async run() {
+    this.abortController.signal.throwIfAborted();
     if (this.config.prRepo === undefined || this.config.prBranch === undefined) {
       throw new Error("Info about PR must be provided in the config!");
     }
@@ -52,6 +56,7 @@ export class Evaluation {
       restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
     };
     const prEvaluation = new VersionEvaluation(
+      this.abortController.signal,
       this.config.prRepo,
       this.config.prBranch,
       prRunnerOptions,
@@ -65,6 +70,7 @@ export class Evaluation {
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
 
     const results = prResults.compare(baseResults);
+    this.abortController.signal.throwIfAborted();
     return results;
   }
   /**
@@ -77,6 +83,7 @@ export class Evaluation {
       if (results) return results;
     }
     const baseEvaluation = new VersionEvaluation(
+      this.abortController.signal,
       this.config.baseRepo,
       this.config.baseBranch,
       { cmpOpts: this.config.options?.cmpOpt },
@@ -96,7 +103,9 @@ export class Evaluation {
   }
   /** Runs experiments only on a base branch, caches the results and returns promise with results. */
   async runOnlyBase() {
+    this.abortController.signal.throwIfAborted();
     const evaluation = new VersionEvaluation(
+      this.abortController.signal,
       this.config.baseRepo,
       this.config.baseBranch,
       {},
@@ -105,11 +114,17 @@ export class Evaluation {
     );
     const results = await evaluation.runExperiments({ cache: this.config.baseSHA });
     await results.cache(this.config.baseSHA);
+    this.abortController.signal.throwIfAborted();
     return results;
+  }
+  /** Aborts evaluation. */
+  abort(reason: string) {
+    this.abortController.abort(new EvaluationAbort(reason));
   }
 }
 /** Class for evaluation of certain version of DiffKemp on selected experiments. */
 class VersionEvaluation {
+  abortSignal;
   repo;
   branch;
   token;
@@ -123,12 +138,14 @@ class VersionEvaluation {
    * @param token Token for retrieving private repos.
    */
   constructor(
+    abortSignal: AbortSignal,
     repo: string,
     branch: string,
     runnerOptions: ExperimentRunnerOptions,
     experiments: ExperimentSelection,
     token?: string,
   ) {
+    this.abortSignal = abortSignal;
     this.repo = repo;
     this.branch = branch;
     this.token = token;
@@ -145,7 +162,7 @@ class VersionEvaluation {
    *   experiments are done.
    */
   async runExperiments(snapshotsCaching?: { restore?: string; cache?: string }) {
-    using container = new Container();
+    using container = new Container(this.abortSignal);
     const diffkemp = new DiffKemp(container, this.repo, this.branch);
     await diffkemp.setup(this.token);
     if (snapshotsCaching?.restore) {
@@ -160,6 +177,7 @@ class VersionEvaluation {
     if (snapshotsCaching?.cache) {
       await this.cacheSnapshots(diffkemp, snapshotsCaching.cache);
     }
+    this.abortSignal.throwIfAborted();
     return new EvaluationResults(results);
   }
   private async restoreSnapshots(diffkemp: DiffKemp, sha: string) {
