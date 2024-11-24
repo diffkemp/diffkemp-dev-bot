@@ -89,4 +89,12 @@ export class EvaluationManager {
       context.log.error(error);
     }
   }
+
+  /** On adding app to repository, runs first evaluation so the results and snapshots are cached. */
+  public async appInstallationHandler(context: Context<"installation.created">) {
+    const evaluation = new Evaluation(await EvaluationConfig.fromCreatedInstallation(context));
+    const timestamp = new Date(context.payload.installation.created_at);
+    context.log.info("Running first evaluation on master branch");
+    await this.runMasterEvaluation(timestamp, evaluation, context.log);
+  }
 }

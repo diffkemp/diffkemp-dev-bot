@@ -12,6 +12,10 @@ import {
 } from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command, Option } from "commander";
+import {
+  getInstallationToken as basicGetInstallationToken,
+  getDefaultBranchSHA as basicGetDefaultBranchSHA,
+} from "../utils/basic.js";
 
 /**
  * Text in a comment on a PR which launches evaluation of the PR.
@@ -101,6 +105,36 @@ export class EvaluationConfig {
       baseSHA,
     });
   }
+
+  /** Creates config based on newly created installation of the app. */
+  static async fromCreatedInstallation(context: Context<"installation.created">) {
+    const repository = context.payload.repositories?.[0];
+    if (!repository) throw Error("Missing repository in the installation info");
+    const [owner, repo] = repository.full_name.split("/");
+    const { default_branch, private: isPrivate } = (
+      await context.octokit.repos.get({ owner, repo })
+    ).data;
+    const token = isPrivate
+      ? await basicGetInstallationToken(context.octokit, {
+          installationId: context.payload.installation.id,
+          repositoryId: repository.id,
+        })
+      : undefined;
+    const baseSHA = await basicGetDefaultBranchSHA(context.octokit, {
+      owner,
+      repo,
+      branch: default_branch,
+    });
+    const logger = context.log;
+    return new EvaluationConfig({
+      baseBranch: default_branch,
+      baseRepo: repository.full_name,
+      token,
+      logger,
+      baseSHA,
+    });
+  }
+
   /** Returns true if all experiments should be run. */
   public runAllExperiments() {
     if (!this.options?.run) return true;

@@ -17,6 +17,9 @@ export default (app: Probot) => {
   app.on("push", async (context) => {
     await pushHandler(context);
   });
+  app.on("installation.created", async (context) => {
+    await appInstallationHandler(context);
+  });
 };
 
 /** Handles when comment was created on an issue/PR. */
@@ -44,4 +47,9 @@ async function pushHandler(context: Context<"push">) {
   if (pushToBranch(context)) {
     await EvaluationManager.getSingleton().pushToBranch(context);
   }
+}
+
+/** Handles app installation to a repository. */
+async function appInstallationHandler(context: Context<"installation.created">) {
+  await EvaluationManager.getSingleton().appInstallationHandler(context);
 }

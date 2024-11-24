@@ -5,6 +5,10 @@
  */
 import { Context } from "probot";
 import { Label, LabelType } from "./labels.js";
+import {
+  getInstallationToken as basicGetInstallationToken,
+  getDefaultBranchSHA as basicGetDefaultBranchSHA,
+} from "./basic.js";
 
 /**
  * Checks the commenter's permissions on the repository.
@@ -67,22 +71,18 @@ export async function getPRRepoAndBranch(context: Context<"issue_comment">) {
  * read repository content and will expire after 1 hour.
  */
 export async function getInstallationToken(context: Context<"issue_comment">) {
-  const response = await context.octokit.rest.apps.createInstallationAccessToken({
-    installation_id: context.payload.installation!.id,
-    repository_ids: [context.payload.repository.id],
-    permissions: {
-      contents: "read",
-    },
+  return await basicGetInstallationToken(context.octokit, {
+    installationId: context.payload.installation!.id,
+    repositoryId: context.payload.repository.id,
   });
-  return response.data.token;
 }
 
 /** Returns current SHA of default branch. */
 export async function getDefaultBranchSHA(context: Context<"issue_comment">) {
-  const response = await context.octokit.repos.getBranch(
+  return await basicGetDefaultBranchSHA(
+    context.octokit,
     context.repo({ branch: context.payload.repository.default_branch }),
   );
-  return response.data.commit.sha;
 }
 
 /** Adds commit status to a PR. */
