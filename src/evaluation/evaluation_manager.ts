@@ -34,12 +34,34 @@ export class EvaluationManager {
   /** Handles pushes to master/default branch. */
   async pushToMasterHandler(context: Context<"push">) {
     context.log.info("Push to default branch");
+    try {
+      context.log.info("Push to default branch");
+      const evaluation = new Evaluation(await EvaluationConfig.fromPushToMaster(context));
+      await this.runMasterEvaluation(evaluation, async () => {
+        await this.rebuildContainerIfNeeded(context);
+      });
+    } catch (e) {
+      context.log.error(e);
+    }
+  }
+
+  /**
+   * Launches evaluation on master branch.
+   *
+   * @param evaluation Evaluation instance to be run.
+   * @param beforeEval Function, which is called before the evaluation is initiated.
+   */
+  private async runMasterEvaluation(evaluation: Evaluation, beforeEval?: () => Promise<void>) {
+    await beforeEval?.();
+    await evaluation.runOnlyBase();
+  }
+
+  /** Rebuilds container if push updates nix. */
+  private async rebuildContainerIfNeeded(context: Context<"push">) {
     if (updatesNix(context)) {
       context.log.info("Rebuilding container image");
       await Container.rebuildImage();
     }
-    const evaluation = new Evaluation(await EvaluationConfig.fromPushToMaster(context));
-    await evaluation.runOnlyBase();
   }
 
   /** Evaluates impact of a PR on a DiffKemp equivalence checking. */
