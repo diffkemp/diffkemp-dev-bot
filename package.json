@@ -12,6 +12,7 @@
     "format:check": "prettier src/ tests/ --check"
   },
   "dependencies": {
+    "async-mutex": "^0.5.0",
     "commander": "^12.1.0",
     "markdown-table": "^3.0.3",
     "probot": "^13.0.1",

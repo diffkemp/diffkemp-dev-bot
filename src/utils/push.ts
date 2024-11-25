@@ -24,3 +24,23 @@ export function isPushToDefaultBranch(context: Context<"push">) {
   // If fork is true it is a pull request.
   return fork === false && `refs/heads/${default_branch}` === ref;
 }
+
+/**
+ * Retrieves the timestamp of the push event from the given context.
+ *
+ * @returns The timestamp of the push event as a Date object.
+ * @throws Will throw an error if the timestamp is missing from the push event payload.
+ */
+export function getTimeOfPush(context: Context<"push">): Date {
+  const timestamp = context.payload.head_commit?.timestamp;
+  if (!timestamp) throw new Error("Missing timestamp on push");
+  return new Date(timestamp);
+}
+/** Returns repo name and branch name on which the push occurred. */
+export function getRepoAndBranch(context: Context<"push">) {
+  return {
+    repo: context.payload.repository.full_name,
+    // ref format refs/heads/branch
+    branch: context.payload.ref.split("/")[2],
+  };
+}

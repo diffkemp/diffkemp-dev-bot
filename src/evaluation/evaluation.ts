@@ -117,6 +117,11 @@ export class Evaluation {
     this.abortController.signal.throwIfAborted();
     return results;
   }
+
+  public getPRRepoAndBranch() {
+    return { repo: this.config.prRepo, branch: this.config.prBranch };
+  }
+
   /** Aborts evaluation. */
   abort(reason: string) {
     this.abortController.abort(new EvaluationAbort(reason));
