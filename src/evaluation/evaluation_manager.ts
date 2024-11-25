@@ -106,7 +106,7 @@ export class EvaluationManager {
   /** Evaluates impact of a PR on a DiffKemp equivalence checking. */
   async evaluatePr(context: Context<"issue_comment.created">) {
     // Creating reaction on the comment.
-    await createCommentReaction(context);
+    const removeCommentReaction = await createCommentReaction(context);
     try {
       const evaluation = new Evaluation(await EvaluationConfig.fromIssueComment(context));
       await this.runExclusively(
@@ -142,6 +142,8 @@ export class EvaluationManager {
       }
       await createComment(context, "`Error occurred while running evaluation.`");
       context.log.error(error);
+    } finally {
+      await removeCommentReaction();
     }
   }
 

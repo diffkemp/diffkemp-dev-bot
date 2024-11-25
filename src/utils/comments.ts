@@ -31,15 +31,26 @@ export async function checkCommenterPermission(
  * Creates an eye emoji reaction on a comment specified by context. Used for marking that the bot is
  * processing the comment.
  *
- * @returns Returns promise which is resolved after the reaction is created.
+ * @returns Returns promise which is resolved after the reaction is created containing function for
+ *   removing the reaction.
  */
-export async function createCommentReaction(context: Context<"issue_comment">) {
-  await context.octokit.reactions.createForIssueComment(
+export async function createCommentReaction(
+  context: Context<"issue_comment">,
+): Promise<() => Promise<void>> {
+  const response = await context.octokit.reactions.createForIssueComment(
     context.repo({
       comment_id: context.payload.comment.id,
       content: "eyes",
     }),
   );
+  return async () => {
+    await context.octokit.reactions.deleteForIssueComment(
+      context.repo({
+        comment_id: context.payload.comment.id,
+        reaction_id: response.data.id,
+      }),
+    );
+  };
 }
 /**
  * Creates comment on a PR specified by the context.
