@@ -115,18 +115,51 @@ export class RHELRunner {
    * @returns Promise containing list of results of comparison of RHEL kernel versions pairs.
    */
   private async compareVersions(options: string[]) {
-    const resultPromises = new Array<Promise<DefaultResult>>();
-    // Add user specified compare options
-    this.config.versions.forEach((versions) => {
-      const [oldVersion, newVersion] = versions.split("-");
-      const promise = this.compare(oldVersion, newVersion, options);
-      resultPromises.push(promise);
+    // The same snapshot versions cannot be compared at the same in parallel because data race
+    // could occur. Splitting the versions to two groups, which will run in sequence.
+    const firstVersions: RHELSupportedVersionCmp[] = [];
+    const secondVersions: RHELSupportedVersionCmp[] = [];
+    const firstGroupSnaps = new Set<string>();
+    this.config.versions.forEach((oldNewVersion) => {
+      const [oldVersion, newVersion] = oldNewVersion.split("-");
+      if (firstGroupSnaps.has(oldVersion) || firstGroupSnaps.has(newVersion)) {
+        secondVersions.push(oldNewVersion);
+      } else {
+        firstGroupSnaps.add(oldVersion);
+        firstGroupSnaps.add(newVersion);
+        firstVersions.push(oldNewVersion);
+      }
     });
-    const results = await Promise.all(resultPromises);
+    const results = [
+      ...(await this.compareInParallel(firstVersions, options)),
+      ...(await this.compareInParallel(secondVersions, options)),
+    ];
+    // Sorting results by compared versions
+    results.sort((r1, r2) => r1.description.localeCompare(r2.description));
     return new DefaultResults(
       this.config.sysctl ? ExperimentTitle.RHEL_SYSCTL : ExperimentTitle.RHEL_FUNCTIONS,
       results,
     );
+  }
+  /**
+   * Compares multiple versions in parallel.
+   *
+   * @param versions Versions to compare in parallel.
+   * @param options Additional options to be used for compare command.
+   */
+  private async compareInParallel(
+    versions: RHELSupportedVersionCmp[],
+    options: string[],
+  ): Promise<DefaultResult[]> {
+    const resultPromises = new Array<Promise<DefaultResult>>();
+    // Add user specified compare options
+    versions.forEach((oldNewVersion) => {
+      const [oldVersion, newVersion] = oldNewVersion.split("-");
+      const promise = this.compare(oldVersion, newVersion, options);
+      resultPromises.push(promise);
+    });
+    const results = await Promise.all(resultPromises);
+    return results;
   }
   /**
    * Compares two versions of RHEL kernel and returns result.
