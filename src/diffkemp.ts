@@ -7,6 +7,7 @@
 import { join } from "path";
 import { IContainer } from "./container.js";
 import { Differences } from "./differences.js";
+import { EvaluationAbort } from "./evaluation/abort.js";
 
 /** Class for working with DiffKemp inside a container. */
 export class DiffKemp {
@@ -43,16 +44,40 @@ export class DiffKemp {
   }
   /** Clones DiffKemp repository with specified branch. */
   private async _clone(token?: string) {
-    const command = ["git", "clone", "--depth", "1", "-b", this.branch];
+    let command = [
+      "git",
+      "clone",
+      "--depth",
+      "1",
+      "-b",
+      this.branch,
+      this._getGitUrl(token),
+      this.directory,
+    ];
+    try {
+      await this.container.run(command.join(" "));
+    } catch (e) {
+      // If the branch is not branch but SHA the previous command will not work,
+      // it is necessary to pull the whole repo and checkout to the SHA.
+      if (e instanceof EvaluationAbort) {
+        throw e;
+      }
+      command = ["git", "clone", this._getGitUrl(token), this.directory];
+      await this.container.run(command.join(" "));
+      await this.container.run(`git -C ${this.directory} fetch origin ${this.branch}`);
+      await this.container.run(`git -C ${this.directory} checkout ${this.branch}`);
+    }
+  }
+  /** Returns url for cloning repo, for private repo, token is necessary. */
+  private _getGitUrl(token?: string) {
     if (token) {
       // Private repo, use token for cloning.
-      command.push(`https://x-access-token:${token}@github.com/${this.repo}`);
+      return `https://x-access-token:${token}@github.com/${this.repo}`;
     } else {
-      command.push(`https://github.com/${this.repo}`);
+      return `https://github.com/${this.repo}`;
     }
-    command.push(this.directory);
-    await this.container.run(command.join(" "));
   }
+
   /** Builds DiffKemp. */
   private async _build() {
     await this.container.run(`nix build ${this.directory} -o ${this.pathToBinDir}`);
