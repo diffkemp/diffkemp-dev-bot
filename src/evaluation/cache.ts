@@ -11,7 +11,7 @@ import { SuccessfulExperimentResults } from "./experiments/experiment.js";
 
 /** Class for caching files and restoring them. */
 export class Cache {
-  static readonly CACHE_DIR = ".cache/";
+  static CACHE_DIR = ".cache/";
   static cacheOnlyLastSnapshot = true;
   /** Caches results of experiment. */
   static async cacheResults(key: string, results: SuccessfulExperimentResults) {

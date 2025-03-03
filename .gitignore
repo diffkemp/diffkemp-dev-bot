@@ -15,3 +15,5 @@ lib/
 !mock-cert.pem
 # Cache
 .cache*
+# Past PRs logs directories
+past-pr-logs*
