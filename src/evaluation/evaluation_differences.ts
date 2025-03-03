@@ -23,6 +23,15 @@ export class EvaluationDifferences {
       this.differences.push(result.compare(baseResult));
     });
   }
+  /** Returns true if there is/are difference/s between the experiments. */
+  public hasDifferences(): boolean {
+    for (const difference of this.differences) {
+      if (difference.hasDifferences()) {
+        return true;
+      }
+    }
+    return false;
+  }
   /** Return report with differences of evaluation. */
   report() {
     const reportString: string[] = [];

@@ -279,6 +279,16 @@ export class EqBenchDifference extends ExperimentDifference {
     return newPrograms;
   }
 
+  /** Returns true if there is/are difference/s between the experiments. */
+  public hasDifferences() {
+    return (
+      this.perProgram.FN.size > 0 ||
+      this.perProgram.FP.size > 0 ||
+      this.perProgram.TN.size > 0 ||
+      this.perProgram.TP.size > 0
+    );
+  }
+
   /**
    * Returns array containing short report of differences [description, TN, FP, TP, FN, compare
    * runtime].

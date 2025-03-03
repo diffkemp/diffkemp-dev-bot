@@ -118,6 +118,8 @@ export abstract class ExperimentDifference {
    * markdown format.
    */
   abstract reportDetails(): string;
+  /** Returns true if there is/are difference/s between the experiments. */
+  abstract hasDifferences(): boolean;
 }
 
 /**
@@ -148,6 +150,15 @@ export class ExperimentDifferences {
   /** Gets difference with given description. */
   public get(description: string) {
     return this.differences.get(description);
+  }
+  /** Returns true if there is/are difference/s between the experiments. */
+  public hasDifferences() {
+    for (const difference of this.differences.values()) {
+      if (difference.hasDifferences()) {
+        return true;
+      }
+    }
+    return false;
   }
   /**
    * Returns string with report about differences of evaluation done by using multiple
