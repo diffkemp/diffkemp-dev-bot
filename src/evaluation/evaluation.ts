@@ -93,10 +93,10 @@ export class Evaluation {
 
     // Note: Try to also restore snapshots from cache - e.g. case when evaluation with user supplied comparison options.
     const results = await baseEvaluation.runExperiments({
-      cache: this.config.cacheBaseSnapshots() ? this.config.baseSHA : undefined,
+      cache: this.config.cacheBaseSnapshots ? this.config.baseSHA : undefined,
       restore: this.config.baseSHA,
     });
-    if (this.config.cacheBaseResults()) {
+    if (this.config.cacheBaseResults) {
       await results.cache(this.config.baseSHA);
     }
     return results;

@@ -44,6 +44,10 @@ export class EvaluationConfig {
   /** SHA of last commit in the default branch of base repository. */
   baseSHA;
 
+  cacheBaseResults;
+
+  cacheBaseSnapshots;
+
   constructor(params: EvaluationConfigParams) {
     this.prRepo = params.prRepo;
     this.prBranch = params.prBranch;
@@ -53,6 +57,16 @@ export class EvaluationConfig {
     this.options = params.options;
     this.logger = params.logger;
     this.baseSHA = params.baseSHA;
+    if (params.cacheBaseResults === undefined) {
+      this.cacheBaseResults = this.determineCacheBaseResults();
+    } else {
+      this.cacheBaseResults = params.cacheBaseResults;
+    }
+    if (params.cacheBaseSnapshots === undefined) {
+      this.cacheBaseSnapshots = this.determineCacheBaseSnapshots();
+    } else {
+      this.cacheBaseSnapshots = params.cacheBaseSnapshots;
+    }
   }
   /**
    * Creates config based on the issue comment context.
@@ -152,12 +166,12 @@ export class EvaluationConfig {
     // Recover results only if additional compare options are not supplied.
     return !this.containsOptionsForBase();
   }
-  /** Returns true if results of the experiments on the base branch should be cached. */
-  public cacheBaseResults() {
+  /** Automatically determines if base results should be cached. */
+  private determineCacheBaseResults() {
     return !this.containsOptionsForBase() && this.runAllExperiments();
   }
-  /** Returns true if snapshots of the experiments on the base branch should be cached. */
-  public cacheBaseSnapshots() {
+  /** Automatically determines if base snapshots should be cached. */
+  public determineCacheBaseSnapshots() {
     return this.runAllExperiments();
   }
 }
@@ -170,6 +184,16 @@ interface EvaluationConfigParams {
   options?: EvaluationOptions;
   logger: Logger;
   baseSHA: string;
+  /**
+   * True, if results for the base branch should be cached, false if not. If not specified
+   * determined automatically.
+   */
+  cacheBaseResults?: boolean;
+  /**
+   * True, if snapshots for the base branch should be cached, false if not. If not specified
+   * determined automatically.
+   */
+  cacheBaseSnapshots?: boolean;
 }
 
 /** Type representing options provided by user for running evaluation. */
