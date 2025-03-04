@@ -6,9 +6,9 @@ import { Differences, DifferencesCached, DifferencesComparator } from "../../dif
 import { ComparisonStatistics } from "../../diffkemp.js";
 import {
   ExperimentDifference,
-  ExperimentDifferences,
+  SuccessfulExperimentDifferences,
   ExperimentResult,
-  ExperimentResults,
+  SuccessfulExperimentResults,
 } from "./experiment.js";
 import { ExperimentTitle } from "./titles.js";
 
@@ -60,7 +60,7 @@ export class DefaultResult extends ExperimentResult {
  * Class containing multiple results, each result gained by using different options and described by
  * different description.
  */
-export class DefaultResults extends ExperimentResults {
+export class DefaultResults extends SuccessfulExperimentResults {
   /** Loads results from json (cache). */
   public static fromJSON(json: object) {
     const cachedResults = json as DefaultCachedResults;
@@ -150,7 +150,7 @@ ${this.differencesCmp.reportDiffering()}
   }
 }
 
-export class DefaultDifferences extends ExperimentDifferences {
+export class DefaultDifferences extends SuccessfulExperimentDifferences {
   /** Returns label for found differences. */
   override getLabels() {
     const labelGroup = this.getLabelGroup();

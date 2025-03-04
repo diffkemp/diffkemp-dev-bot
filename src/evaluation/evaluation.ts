@@ -12,9 +12,9 @@ import { EvaluationConfig } from "./config.js";
 import { EvaluationResults } from "./evaluation_results.js";
 import { EqBenchRunner } from "./experiments/eqbench.js";
 import {
-  ExperimentResults,
   ExperimentRunner,
   ExperimentRunnerOptions,
+  ExperimentResults,
 } from "./experiments/experiment.js";
 import { RHELRunner } from "./experiments/rhel.js";
 
@@ -75,7 +75,8 @@ export class Evaluation {
   }
   /**
    * Tries to restore results for base DiffKemp, if results do not exists launching evaluation of
-   * all experiments and caching the results.
+   * all experiments and caching the results. If some experiment failed, the results are not
+   * cached.
    */
   private async restoreOrRunBase() {
     if (this.config.restoreBaseResults()) {
@@ -97,11 +98,21 @@ export class Evaluation {
       restore: this.config.baseSHA,
     });
     if (this.config.cacheBaseResults) {
-      await results.cache(this.config.baseSHA);
+      if (results.hasFailed()) {
+        this.config.logger.error(
+          results.getFailedErrors(),
+          `Error: results were not cached, following experiments failed: ${results.getFailedTitles().join(", ")}`,
+        );
+      } else {
+        await results.cache(this.config.baseSHA);
+      }
     }
     return results;
   }
-  /** Runs experiments only on a base branch, caches the results and returns promise with results. */
+  /**
+   * Runs experiments only on a base branch, caches the results and returns promise with results.
+   * The results are not cached if some experiment failed.
+   */
   async runOnlyBase() {
     this.abortController.signal.throwIfAborted();
     const evaluation = new VersionEvaluation(
@@ -113,7 +124,14 @@ export class Evaluation {
       this.config.token,
     );
     const results = await evaluation.runExperiments({ cache: this.config.baseSHA });
-    await results.cache(this.config.baseSHA);
+    if (results.hasFailed()) {
+      this.config.logger.error(
+        results.getFailedErrors(),
+        `Error: results were not cached, following experiments failed: ${results.getFailedTitles().join(", ")}`,
+      );
+    } else {
+      await results.cache(this.config.baseSHA);
+    }
     this.abortController.signal.throwIfAborted();
     return results;
   }
@@ -165,6 +183,7 @@ class VersionEvaluation {
    *   only compares them.
    * @param snapshotsCaching.cache Key for caching snapshots, if provided caches snapshots after the
    *   experiments are done.
+   * @note If some experiment failed when running, the snapshots are not cached.
    */
   async runExperiments(snapshotsCaching?: { restore?: string; cache?: string }) {
     using container = new Container(this.abortSignal);
@@ -178,12 +197,12 @@ class VersionEvaluation {
     runners.forEach((runner) => {
       resultsPromises.push(runner.run(this.experimentOptions));
     });
-    const results = await Promise.all(resultsPromises);
-    if (snapshotsCaching?.cache) {
+    const results = new EvaluationResults(await Promise.all(resultsPromises));
+    if (snapshotsCaching?.cache && !results.hasFailed()) {
       await this.cacheSnapshots(diffkemp, snapshotsCaching.cache);
     }
     this.abortSignal.throwIfAborted();
-    return new EvaluationResults(results);
+    return results;
   }
   private async restoreSnapshots(diffkemp: DiffKemp, sha: string) {
     await Cache.restoreSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);

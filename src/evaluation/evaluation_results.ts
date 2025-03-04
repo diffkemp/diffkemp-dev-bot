@@ -5,7 +5,11 @@
  */
 import { Cache } from "./cache.js";
 import { EvaluationDifferences } from "./evaluation_differences.js";
-import { ExperimentResults } from "./experiments/experiment.js";
+import {
+  ExperimentResults,
+  FailedExperiment,
+  SuccessfulExperimentResults,
+} from "./experiments/experiment.js";
 
 export class EvaluationResults {
   results = new Map<string, ExperimentResults>();
@@ -21,6 +25,35 @@ export class EvaluationResults {
   /** Returns all results. */
   public getResults() {
     return this.results;
+  }
+  /** Returns true if any experiment failed. */
+  public hasFailed() {
+    for (const result of this.results.values()) {
+      if (result instanceof FailedExperiment) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /** Returns errors of failed experiments. */
+  public getFailedErrors(): (Error | undefined)[] {
+    const errors = new Array<Error | undefined>();
+    for (const result of this.results.values()) {
+      if (result instanceof FailedExperiment) {
+        errors.push(result.getError());
+      }
+    }
+    return errors;
+  }
+  /** Returns names of failed experiments. */
+  public getFailedTitles(): string[] {
+    const titles = new Array<string>();
+    for (const result of this.results.values()) {
+      if (result instanceof FailedExperiment) {
+        titles.push(result.getTitle());
+      }
+    }
+    return titles;
   }
   /**
    * Returns differences between this results of experiments and results of experiments gained when
@@ -38,7 +71,9 @@ export class EvaluationResults {
   /** Cache results. */
   public async cache(key: string) {
     for (const [, result] of this.results) {
-      await Cache.cacheResults(key, result);
+      if (result instanceof SuccessfulExperimentResults) {
+        await Cache.cacheResults(key, result);
+      }
     }
   }
 }

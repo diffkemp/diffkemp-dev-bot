@@ -15,6 +15,7 @@ import { join } from "path";
 import { DiffKemp } from "../../../src/diffkemp.js";
 import { ExperimentTitle } from "../../../src/evaluation/experiments/titles.js";
 import { LabelGroups } from "../../../src/utils/labels.js";
+import { SuccessfulExperimentDifferences } from "../../../src/evaluation/experiments/experiment.js";
 
 describe("EqBenchRunner", () => {
   test(
@@ -94,7 +95,9 @@ describe("EqBench results", () => {
     const prResults = new EqBenchResults(ExperimentTitle.EQBENCH, [prResult]);
 
     const differences = prResults.compare(baseResults);
-    const difference = differences.get("default") as EqBenchDifference;
+    const difference = (differences as SuccessfulExperimentDifferences).get(
+      "default",
+    ) as EqBenchDifference;
     expect(difference).toBeDefined();
     expect(difference.total.TN).toBe(1);
     expect(difference.total.FP).toBe(0);

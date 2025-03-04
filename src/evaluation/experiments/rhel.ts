@@ -6,7 +6,7 @@
 
 import { join } from "path";
 import { DiffKemp } from "../../diffkemp.js";
-import { ExperimentRunnerOptions } from "./experiment.js";
+import { ExperimentRunnerOptions, FailedExperiment } from "./experiment.js";
 import { DefaultResult, DefaultResults } from "./default.js";
 import { ExperimentTitle } from "./titles.js";
 
@@ -74,7 +74,20 @@ export class RHELRunner {
    *
    * @returns Promise that resolves with list of results of comparison.
    */
-  async run(options: ExperimentRunnerOptions) {
+  public async run(options: ExperimentRunnerOptions) {
+    try {
+      return await this.runExperiment(options);
+    } catch (e) {
+      if (e instanceof Error) {
+        return new FailedExperiment(this.getTitle(), e);
+      }
+      return new FailedExperiment(this.getTitle());
+    }
+  }
+  public getTitle(): ExperimentTitle {
+    return this.config.sysctl ? ExperimentTitle.RHEL_SYSCTL : ExperimentTitle.RHEL_FUNCTIONS;
+  }
+  private async runExperiment(options: ExperimentRunnerOptions) {
     await this.diffkemp.container.run(`mkdir -p ${this.results_path}`);
     await this.createSymbolListFile();
     await this.buildVersions();
@@ -136,10 +149,7 @@ export class RHELRunner {
     ];
     // Sorting results by compared versions
     results.sort((r1, r2) => r1.description.localeCompare(r2.description));
-    return new DefaultResults(
-      this.config.sysctl ? ExperimentTitle.RHEL_SYSCTL : ExperimentTitle.RHEL_FUNCTIONS,
-      results,
-    );
+    return new DefaultResults(this.getTitle(), results);
   }
   /**
    * Compares multiple versions in parallel.

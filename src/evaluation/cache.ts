@@ -7,14 +7,14 @@ import { existsSync } from "fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { IContainer } from "../container.js";
-import { ExperimentResults } from "./experiments/experiment.js";
+import { SuccessfulExperimentResults } from "./experiments/experiment.js";
 
 /** Class for caching files and restoring them. */
 export class Cache {
   static readonly CACHE_DIR = ".cache/";
   static cacheOnlyLastSnapshot = true;
   /** Caches results of experiment. */
-  static async cacheResults(key: string, results: ExperimentResults) {
+  static async cacheResults(key: string, results: SuccessfulExperimentResults) {
     const dir = join(Cache.CACHE_DIR, "results", key);
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
@@ -26,13 +26,13 @@ export class Cache {
     );
   }
   /** Return cached results, returns null if results are not cached. */
-  static async restoreResults(key: string): Promise<ExperimentResults[] | null> {
+  static async restoreResults(key: string): Promise<SuccessfulExperimentResults[] | null> {
     const dir = join(Cache.CACHE_DIR, "results", key);
     if (!existsSync(dir)) {
       return null;
     }
     const resultFiles = await readdir(dir);
-    const results = Array<ExperimentResults>();
+    const results = Array<SuccessfulExperimentResults>();
     for (const fileName of resultFiles) {
       if (!fileName.endsWith(".json")) {
         continue;
@@ -40,7 +40,7 @@ export class Cache {
       const file = join(dir, fileName);
       const fileContent = await readFile(file, { encoding: "utf-8" });
       const json = JSON.parse(fileContent) as object;
-      results.push(await ExperimentResults.createFromJSON(json));
+      results.push(await SuccessfulExperimentResults.createFromJSON(json));
     }
     return results;
   }

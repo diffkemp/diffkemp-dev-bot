@@ -5,7 +5,7 @@
  * @author Lukas Petr
  */
 import { EvaluationResults } from "./evaluation_results.js";
-import { ExperimentDifferences } from "./experiments/experiment.js";
+import { ExperimentDifferences, FailedExperimentDifferences } from "./experiments/experiment.js";
 
 export class EvaluationDifferences {
   differences: ExperimentDifferences[] = [];
@@ -31,6 +31,35 @@ export class EvaluationDifferences {
       }
     }
     return false;
+  }
+  /** Returns true if any experiment failed. */
+  public hasFailed() {
+    for (const difference of this.differences.values()) {
+      if (difference instanceof FailedExperimentDifferences) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /** Returns errors of failed experiments. */
+  public getFailedErrors(): (Error | undefined)[] {
+    const errors = new Array<Error | undefined>();
+    for (const difference of this.differences.values()) {
+      if (difference instanceof FailedExperimentDifferences) {
+        errors.push(difference.getError());
+      }
+    }
+    return errors;
+  }
+  /** Returns names of failed experiments. */
+  public getFailedTitles(): string[] {
+    const titles = new Array<string>();
+    for (const difference of this.differences.values()) {
+      if (difference instanceof FailedExperimentDifferences) {
+        titles.push(difference.getTitle());
+      }
+    }
+    return titles;
   }
   /** Return report with differences of evaluation. */
   report() {

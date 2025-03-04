@@ -9,6 +9,7 @@ import {
   DefaultResults,
 } from "../../../src/evaluation/experiments/default.js";
 import { ExperimentTitle } from "../../../src/evaluation/experiments/titles.js";
+import { SuccessfulExperimentDifferences } from "../../../src/evaluation/experiments/experiment.js";
 import { Differences } from "../../../src/differences.js";
 
 const createResult = () => {
@@ -72,7 +73,9 @@ describe("DefaultResults", () => {
       new DefaultResult("8.0-8.1", stats, new Differences(resultDifferences)),
     ]);
     const differences = prResults.compare(baseResults);
-    const difference = differences.get("8.0-8.1") as DefaultDifference;
+    const difference = (differences as SuccessfulExperimentDifferences).get(
+      "8.0-8.1",
+    ) as DefaultDifference;
     expect(difference).toBeDefined();
     expect(difference.statistics.equal).toBe(-1);
     expect(difference.statistics.errors).toBe(-1);

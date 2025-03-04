@@ -7,11 +7,14 @@
 import { markdownTable } from "markdown-table";
 import { Label, LabelGroup, LabelGroups } from "../../utils/labels.js";
 import { ExperimentTitle } from "./titles.js";
+import { EvaluationAbort } from "../abort.js";
 import { DefaultCachedResults } from "./default.js";
 import { EqBenchCachedResults } from "./eqbench.js";
 
 export interface ExperimentRunner {
-  run(options?: ExperimentRunnerOptions): Promise<ExperimentResult>;
+  run(options?: ExperimentRunnerOptions): Promise<ExperimentResults>;
+  /** Returns title of experiment that is run. */
+  getTitle(): ExperimentTitle;
 }
 export interface ExperimentRunnerOptions {
   cmpOpts?: string[];
@@ -30,31 +33,64 @@ export abstract class ExperimentResult {
   abstract toJSON(): object;
 }
 
-/**
- * Represents multiple results of an experiment (e.g. results by using different options or for
- * different versions).
- */
+/** Base class for experiment results. */
 export abstract class ExperimentResults {
-  /** Maps description of the result to the result. */
-  private results = new Map<string, ExperimentResult>();
   /** Title/name of the results. */
   protected title;
-  constructor(title: ExperimentTitle, results: ExperimentResult[]) {
+  public constructor(title: ExperimentTitle) {
     this.title = title;
-    results.forEach((result) => {
-      this.results.set(result.description, result);
-    });
   }
   public getTitle() {
     return this.title;
   }
+  public abstract compare(base: ExperimentResults): ExperimentDifferences;
+}
+
+/** Class representing failed experiment. */
+export class FailedExperiment extends ExperimentResults {
+  /** Error that caused inability to finish experiment. */
+  private error;
+  public constructor(title: ExperimentTitle, error?: Error) {
+    super(title);
+    if (error instanceof EvaluationAbort) {
+      throw error;
+    }
+    this.error = error;
+  }
+  /** Returns error why the experiment failed or undefined if it is not known. */
+  public getError(): Error | undefined {
+    return this.error;
+  }
+  public compare(base: ExperimentResults): FailedExperimentDifferences {
+    return new FailedExperimentDifferences(base.getTitle(), this.getError());
+  }
+}
+
+/**
+ * Represents multiple results of an experiment (e.g. results by using different options or for
+ * different versions) that finished successfully (error did not occurred).
+ */
+export abstract class SuccessfulExperimentResults extends ExperimentResults {
+  /** Maps description of the result to the result. */
+  private results = new Map<string, ExperimentResult>();
+  constructor(title: ExperimentTitle, results: ExperimentResult[]) {
+    super(title);
+    results.forEach((result) => {
+      this.results.set(result.description, result);
+    });
+  }
+
   /** Creates instance of ExperimentDifferences. */
-  protected abstract createDifferences(): ExperimentDifferences;
+  protected abstract createDifferences(): SuccessfulExperimentDifferences;
   /**
    * Compares results with base results, the comparison is done based on the description of the
    * results.
    */
   public compare(base: ExperimentResults): ExperimentDifferences {
+    if (!(base instanceof SuccessfulExperimentResults)) {
+      const error = base instanceof FailedExperiment ? base.getError() : undefined;
+      return new FailedExperimentDifferences(base.getTitle(), error);
+    }
     const differences = this.createDifferences();
     this.results.forEach((prResult, description) => {
       const baseResult = base.getByDescription(description);
@@ -68,7 +104,7 @@ export abstract class ExperimentResults {
   /** Represents results as json so they can be cached. */
   public toJSON(): { title: string; results: Record<string, ExperimentResult> } {
     return {
-      title: this.title,
+      title: this.getTitle(),
       results: Object.fromEntries(this.results.entries()),
     };
   }
@@ -77,7 +113,7 @@ export abstract class ExperimentResults {
     return this.results.get(description);
   }
   /** Returns results from JSON format. */
-  public static async createFromJSON(json: object): Promise<ExperimentResults> {
+  public static async createFromJSON(json: object): Promise<SuccessfulExperimentResults> {
     const jsonObj = json as { title: string };
     const { EqBenchResults } = await import("./eqbench.js");
     if (jsonObj.title === ExperimentTitle.EQBENCH.toString()) {
@@ -121,28 +157,64 @@ export abstract class ExperimentDifference {
   /** Returns true if there is/are difference/s between the experiments. */
   abstract hasDifferences(): boolean;
 }
+export abstract class ExperimentDifferences {
+  private title;
+  public constructor(title: ExperimentTitle) {
+    this.title = title;
+  }
+  public getTitle() {
+    return this.title;
+  }
+  public abstract report(): string;
+  /** Get group of labels which can be returned by getLabels. */
+  public getLabelGroup(): LabelGroup {
+    return LabelGroups[this.getTitle()];
+  }
+  /** Get labels describing the differences, this should be overridden by child classes. */
+  public getLabels(): Label[] {
+    return [];
+  }
+  public abstract hasDifferences(): boolean;
+}
 
+/** Class representing that it was not possible to compare differences because an experiment failed. */
+export class FailedExperimentDifferences extends ExperimentDifferences {
+  public error;
+  /**
+   * @param title Name of the experiment.
+   * @param error Reason why the comparison failed.
+   */
+  public constructor(title: ExperimentTitle, error?: Error) {
+    super(title);
+    this.error = error;
+  }
+  public report() {
+    return `## Error: ${this.getTitle()} failed\n`;
+  }
+  public hasDifferences(): boolean {
+    return false;
+  }
+  public getError(): Error | undefined {
+    return this.error;
+  }
+}
 /**
  * Class representing multiple differences between results of experiment done using two DiffKemp
  * versions and different versions/configurations of experiment.
  */
-export class ExperimentDifferences {
+export class SuccessfulExperimentDifferences extends ExperimentDifferences {
   /** Maps description of difference to difference, */
   protected differences = new Map<string, ExperimentDifference>();
-  private title;
   /**
    * Header of table for reporting found differences, used in connection with
    * `ExperimentDifference`'s `reportLine` method.
    */
   private header;
   public constructor(title: ExperimentTitle, header: string[]) {
-    this.title = title;
+    super(title);
     this.header = header;
   }
 
-  public getTitle() {
-    return this.title;
-  }
   /* Adds new difference */
   public add(difference: ExperimentDifference) {
     this.differences.set(difference.description, difference);
@@ -176,7 +248,7 @@ export class ExperimentDifferences {
     });
 
     return `
-## ${this.title}
+## ${this.getTitle()}
 
 ${markdownTable(table)}
 
@@ -188,13 +260,5 @@ ${detailedReports.join("\n")}
 
 </details>
     `;
-  }
-  /** Get labels describing the differences, this should be overridden by child classes. */
-  public getLabels(): Label[] {
-    return [];
-  }
-  /** Get group of labels which can be returned by getLabels. */
-  public getLabelGroup(): LabelGroup {
-    return LabelGroups[this.getTitle()];
   }
 }

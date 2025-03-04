@@ -13,11 +13,12 @@ import { IContainer } from "../../container.js";
 import { DiffKemp } from "../../diffkemp.js";
 import {
   ExperimentDifference,
-  ExperimentDifferences,
+  SuccessfulExperimentDifferences,
   ExperimentResult,
-  ExperimentResults,
+  SuccessfulExperimentResults,
   ExperimentRunner,
   ExperimentRunnerOptions,
+  FailedExperiment,
 } from "./experiment.js";
 import { ExperimentTitle } from "./titles.js";
 
@@ -57,6 +58,17 @@ export class EqBenchRunner implements ExperimentRunner {
    * @returns Promise that resolves with results when the execution ends.
    */
   public async run(options: ExperimentRunnerOptions) {
+    try {
+      return await this.runExperiment(options);
+    } catch (e) {
+      if (e instanceof Error) {
+        return new FailedExperiment(this.getTitle(), e);
+      }
+      return new FailedExperiment(this.getTitle());
+    }
+  }
+
+  private async runExperiment(options: ExperimentRunnerOptions) {
     await this.diffkemp.container.run(`mkdir -p ${EqBenchRunner.RESULTS_PATH}`);
     await this.diffkemp.container.run(`mkdir -p ${EqBenchRunner.SNAPSHOTS_PATH}`);
     const commandOptions: string[] = [];
@@ -84,7 +96,10 @@ export class EqBenchRunner implements ExperimentRunner {
       );
     }
     const results = await Promise.all(promises);
-    return new EqBenchResults(ExperimentTitle.EQBENCH, results);
+    return new EqBenchResults(this.getTitle(), results);
+  }
+  public getTitle(): ExperimentTitle {
+    return ExperimentTitle.EQBENCH;
   }
 
   /**
@@ -215,7 +230,7 @@ export class EqBenchResult extends ExperimentResult {
  * Class containing multiple results, each result gained by using different options and described by
  * different description.
  */
-export class EqBenchResults extends ExperimentResults {
+export class EqBenchResults extends SuccessfulExperimentResults {
   /** Loads results from json (cache). */
   public static fromJSON(json: object) {
     const results = Object.values((json as EqBenchCachedResults).results).map((result) =>
@@ -348,7 +363,7 @@ ${this.getProgramList(this.perProgram.FN)}
   }
 }
 
-class EqBenchDifferences extends ExperimentDifferences {
+class EqBenchDifferences extends SuccessfulExperimentDifferences {
   /** Returns labels for found differences. */
   override getLabels() {
     const differences = [...this.differences.values()] as EqBenchDifference[];
