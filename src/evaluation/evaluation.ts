@@ -44,37 +44,41 @@ export class Evaluation {
     if (this.config.prRepo === undefined || this.config.prBranch === undefined) {
       throw new Error("Info about PR must be provided in the config!");
     }
-    const prRunnerOptions: ExperimentRunnerOptions = {};
-    prRunnerOptions.cmpOpts = [];
-    if (this.config.options?.prCmpOpt) {
-      prRunnerOptions.cmpOpts.push(...this.config.options.prCmpOpt);
-    }
-    if (this.config.options?.cmpOpt) {
-      prRunnerOptions.cmpOpts.push(...this.config.options.cmpOpt);
-    }
-    const prCachingOption = {
-      restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
-      cache: this.config.cachePrSnapshots ? this.config.prSHA : undefined,
-    };
-    const prEvaluation = new VersionEvaluation(
-      this.abortController.signal,
-      this.config.prRepo,
-      this.config.prBranch,
-      prRunnerOptions,
-      this.selectedExperiments,
-      this.config.token,
-    );
-    const prResultsPromise = prEvaluation.runExperiments(prCachingOption);
 
+    const prResultsPromise = this.runPr();
     const baseResultsPromise = this.restoreOrRunBase();
-
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
-    if (this.config.cachePrResults && this.config.prSHA) {
-      await prResults.cache(this.config.prSHA);
-    }
 
     const results = prResults.compare(baseResults);
     this.abortController.signal.throwIfAborted();
+    return results;
+  }
+  /** Runs experiments on a PR. */
+  private async runPr() {
+    const runnerOptions: ExperimentRunnerOptions = {};
+    runnerOptions.cmpOpts = [];
+    if (this.config.options?.prCmpOpt) {
+      runnerOptions.cmpOpts.push(...this.config.options.prCmpOpt);
+    }
+    if (this.config.options?.cmpOpt) {
+      runnerOptions.cmpOpts.push(...this.config.options.cmpOpt);
+    }
+    const cachingOption = {
+      restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
+      cache: this.config.cachePrSnapshots ? this.config.prSHA : undefined,
+    };
+    const evaluation = new VersionEvaluation(
+      this.abortController.signal,
+      this.config.prRepo!,
+      this.config.prBranch!,
+      runnerOptions,
+      this.selectedExperiments,
+      this.config.token,
+    );
+    const results = await evaluation.runExperiments(cachingOption);
+    if (this.config.cachePrResults && this.config.prSHA) {
+      await results.cache(this.config.prSHA);
+    }
     return results;
   }
   /**
