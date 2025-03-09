@@ -43,10 +43,14 @@ export class EvaluationConfig {
   options;
   /** SHA of last commit in the default branch of base repository. */
   baseSHA;
+  /** SHA of a last PR commit. */
+  prSHA?: string;
 
   cacheBaseResults;
-
   cacheBaseSnapshots;
+  /** Caching of Pr results and snapshots by default turned off but can be overridden. */
+  cachePrResults = false;
+  cachePrSnapshots = false;
 
   constructor(params: EvaluationConfigParams) {
     this.prRepo = params.prRepo;
@@ -57,6 +61,7 @@ export class EvaluationConfig {
     this.options = params.options;
     this.logger = params.logger;
     this.baseSHA = params.baseSHA;
+    this.prSHA = params.prSHA;
     if (params.cacheBaseResults === undefined) {
       this.cacheBaseResults = this.determineCacheBaseResults();
     } else {
@@ -66,6 +71,12 @@ export class EvaluationConfig {
       this.cacheBaseSnapshots = this.determineCacheBaseSnapshots();
     } else {
       this.cacheBaseSnapshots = params.cacheBaseSnapshots;
+    }
+    if (params.cachePrResults) {
+      this.cachePrResults = params.cachePrResults;
+    }
+    if (params.cachePrSnapshots) {
+      this.cachePrSnapshots = params.cachePrSnapshots;
     }
   }
   /**
@@ -185,6 +196,11 @@ interface EvaluationConfigParams {
   logger: Logger;
   baseSHA: string;
   /**
+   * SHA of a PR, does not have to be provided but without it the PR snapshots and results cannot be
+   * cached.
+   */
+  prSHA?: string;
+  /**
    * True, if results for the base branch should be cached, false if not. If not specified
    * determined automatically.
    */
@@ -194,6 +210,16 @@ interface EvaluationConfigParams {
    * determined automatically.
    */
   cacheBaseSnapshots?: boolean;
+  /**
+   * True, if results for the PR branch should be cached, false if not. If not specified they are
+   * not cached.
+   */
+  cachePrResults?: boolean;
+  /**
+   * True, if snapshots for the PR branch should be cached, false if not. If not specified they are
+   * not cached.
+   */
+  cachePrSnapshots?: boolean;
 }
 
 /** Type representing options provided by user for running evaluation. */

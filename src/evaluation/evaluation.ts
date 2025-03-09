@@ -54,6 +54,7 @@ export class Evaluation {
     }
     const prCachingOption = {
       restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
+      cache: this.config.cachePrSnapshots ? this.config.prSHA : undefined,
     };
     const prEvaluation = new VersionEvaluation(
       this.abortController.signal,
@@ -68,6 +69,9 @@ export class Evaluation {
     const baseResultsPromise = this.restoreOrRunBase();
 
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
+    if (this.config.cachePrResults && this.config.prSHA) {
+      await prResults.cache(this.config.prSHA);
+    }
 
     const results = prResults.compare(baseResults);
     this.abortController.signal.throwIfAborted();
