@@ -18,6 +18,9 @@ import {
 } from "./experiments/experiment.js";
 import { RHELRunner } from "./experiments/rhel.js";
 
+/** Time limit for building of kernels. */
+const KERNEL_BUILD_TIME_LIMIT = 3.5 * 60 * 60 * 1000;
+
 /** Class for running evaluations of PRs. */
 export class Evaluation {
   abortController: AbortController;
@@ -231,12 +234,13 @@ class VersionEvaluation {
       runners.push(new EqBenchRunner(diffkemp));
     }
     if (this.experiments.rhelFunctions) {
-      runners.push(new RHELRunner(diffkemp));
+      runners.push(new RHELRunner(diffkemp, { build_timeout: KERNEL_BUILD_TIME_LIMIT }));
     }
     if (this.experiments.rhelSysctl) {
       runners.push(
         new RHELRunner(diffkemp, {
           sysctl: true,
+          build_timeout: KERNEL_BUILD_TIME_LIMIT,
         }),
       );
     }

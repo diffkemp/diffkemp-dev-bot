@@ -79,6 +79,9 @@ export abstract class SuccessfulExperimentResults extends ExperimentResults {
       this.results.set(result.description, result);
     });
   }
+  public getResults() {
+    return this.results;
+  }
 
   /** Creates instance of ExperimentDifferences. */
   protected abstract createDifferences(): SuccessfulExperimentDifferences;

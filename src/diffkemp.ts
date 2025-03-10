@@ -89,14 +89,19 @@ export class DiffKemp {
   /**
    * Runs command in DiffKemp development environment.
    *
+   * @param options.timeout Time in ms after which will be the command aborted - throws
+   *   TimeoutError.
    * @returns Promise that resolves when the command finishes. The promise contains stdout output of
    *   the command.
    */
-  async runInDevelopmentEnv(command: string | string[]) {
+  async runInDevelopmentEnv(command: string | string[], options?: { timeout?: number }) {
     if (command instanceof Array) {
       command = command.join(" ");
     }
-    return this.container.run(`nix develop ${this.directory} --command bash -c '${command}'`);
+    return this.container.run(
+      `nix develop ${this.directory} --command bash -c '${command}'`,
+      options,
+    );
   }
   /** Returns latest LLVM version which DiffKemp supports. */
   async getLlvmVersion() {
@@ -110,14 +115,21 @@ export class DiffKemp {
    * @param outDir Path to directory where the snapshot will be saved.
    * @param symbolFile Path to file containing list o symbols which will be prepared for comparison.
    * @param sysctl True if the symbols specified in the symbol list are sysctl parameters.
+   * @param timeout Time in ms after which will be the building aborted - throws TimeoutError.
    * @returns Promise that contains stdout of the build command.
    */
-  async buildKernel(srcDir: string, outDir: string, symbolFile: string, sysctl = false) {
+  async buildKernel(
+    srcDir: string,
+    outDir: string,
+    symbolFile: string,
+    sysctl = false,
+    timeout?: number,
+  ) {
     const command = [this.getPathToBin(), "build-kernel", srcDir, outDir, symbolFile];
     if (sysctl) {
       command.push("--sysctl");
     }
-    return await this.runInDevelopmentEnv(command);
+    return await this.runInDevelopmentEnv(command, { timeout });
   }
   /**
    * Compares two snapshots.

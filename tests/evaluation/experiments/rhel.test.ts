@@ -28,6 +28,27 @@ describe("RHELRunner", () => {
     },
   );
   test(
+    "results should be returned even if time limit was reached when building",
+    { timeout: 1_200_000 },
+    async () => {
+      const container = new Container();
+      try {
+        const diffkemp = new DiffKemp(container, "diffkemp/diffkemp", "master");
+        await diffkemp.setup();
+        const runner = new RHELRunner(diffkemp, {
+          versions: ["8.0-8.1"],
+          symbolList: ["__alloc_pages_nodemask"],
+          build_timeout: 10000,
+        });
+        const result = await runner.run({});
+        expect(result).toBeInstanceOf(DefaultResults);
+        expect((result as DefaultResults).getResults()).toEqual(new Map());
+      } finally {
+        container[Symbol.dispose]();
+      }
+    },
+  );
+  test(
     "it should be possible to compare a RHEL kernel sysctl parameters",
     { timeout: 300_000 },
     async () => {

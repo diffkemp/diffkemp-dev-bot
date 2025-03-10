@@ -9,6 +9,7 @@ import { DiffKemp } from "../../diffkemp.js";
 import { ExperimentRunnerOptions, FailedExperiment } from "./experiment.js";
 import { DefaultResult, DefaultResults } from "./default.js";
 import { ExperimentTitle } from "./titles.js";
+import { TimeoutError } from "../../container.js";
 
 /** Supported versions for comparison. */
 type RHELSupportedVersionCmp = "8.0-8.1" | "8.1-8.2" | "8.2-8.3" | "8.3-8.4" | "8.4-8.5";
@@ -20,6 +21,8 @@ interface RHELConfig {
   versions: RHELSupportedVersionCmp[];
   /** List of symbols to compare (for testing purposes). */
   symbolList?: string[];
+  /** Time limit in ms for build command. In some PRs, the building took to long for unknown reason. */
+  build_timeout?: number;
 }
 const DEFAULT_RHELConfig: RHELConfig = {
   sysctl: false,
@@ -53,6 +56,8 @@ export class RHELRunner {
   private symbolListPath?: string;
   /** Configuration of the runner. */
   private config: RHELConfig;
+  /** Versions (8.X) that ended with timeout when building. */
+  private buildWithTimeout = new Array<string>();
   /**
    * Prepares for running RHEL kernels comparison.
    *
@@ -72,7 +77,8 @@ export class RHELRunner {
   /**
    * Executes DiffKemp on EqBench benchmarks.
    *
-   * @returns Promise that resolves with list of results of comparison.
+   * @returns Promise that resolves with list of results of comparison. If building of some versions
+   *   exceeded timelimit, the results will not contain comparison results of these kernels.
    */
   public async run(options: ExperimentRunnerOptions) {
     try {
@@ -100,7 +106,7 @@ export class RHELRunner {
   private async buildVersions() {
     await this.diffkemp.container.run(`mkdir -p ${this.snapshots_path}`);
     // Build all version to snapshots
-    const buildPromises: Promise<string>[] = [];
+    const buildPromises: Promise<string | void>[] = [];
     const versions = this.getVersionsToBuild();
     for (const version of versions) {
       const name = RHELRunner.VERSIONS_MAP.get(version);
@@ -111,12 +117,25 @@ export class RHELRunner {
         continue;
       }
       const symbolListPath = this.getPathToSymbolList(currentSourcePath);
-      const promise = this.diffkemp.buildKernel(
-        currentSourcePath,
-        currentSnapshotPath,
-        symbolListPath,
-        this.config.sysctl,
-      );
+      const promise = this.diffkemp
+        .buildKernel(
+          currentSourcePath,
+          currentSnapshotPath,
+          symbolListPath,
+          this.config.sysctl,
+          this.config.build_timeout,
+        )
+        .catch((error) => {
+          let errorCause: unknown = error;
+          while (errorCause && errorCause instanceof Error) {
+            if (errorCause instanceof TimeoutError) {
+              this.buildWithTimeout.push(version);
+              return;
+            }
+            errorCause = errorCause.cause;
+          }
+          throw error;
+        });
       buildPromises.push(promise);
     }
     await Promise.all(buildPromises);
@@ -135,6 +154,11 @@ export class RHELRunner {
     const firstGroupSnaps = new Set<string>();
     this.config.versions.forEach((oldNewVersion) => {
       const [oldVersion, newVersion] = oldNewVersion.split("-");
+      const versionTimeouted =
+        this.buildWithTimeout.includes(oldVersion) || this.buildWithTimeout.includes(newVersion);
+      if (versionTimeouted) {
+        return;
+      }
       if (firstGroupSnaps.has(oldVersion) || firstGroupSnaps.has(newVersion)) {
         secondVersions.push(oldNewVersion);
       } else {

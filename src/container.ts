@@ -9,6 +9,13 @@ import { promisify } from "util";
 
 const execFilePromisify = promisify(execFile);
 
+/** Error thrown by the container because timeout of command was reached. */
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 /**
  * Class allowing to spawn a container and run commands in it.
  *
@@ -48,21 +55,26 @@ export class Container implements Disposable, IContainer {
    *
    * @returns Promise containing stdout output of the command.
    */
-  async run(command: string | string[]) {
+  async run(command: string | string[], options?: { timeout?: number }) {
     if (command instanceof Array) {
       command = command.join(" ");
     }
+    const startTime = Date.now();
     try {
       const { stdout } = await execFilePromisify(
         "podman",
         ["exec", this.id!, "bash", "-c", command],
         {
           encoding: "utf-8",
+          timeout: options?.timeout,
         },
       );
       return stdout;
     } catch (e) {
       this.abortSignal?.throwIfAborted();
+      if (options?.timeout && Date.now() - startTime >= options.timeout) {
+        throw new TimeoutError(`Error: Time for command exceeded (${command.toString()})`);
+      }
       throw e;
     }
   }
@@ -116,7 +128,7 @@ export class Container implements Disposable, IContainer {
 }
 
 export interface IContainer {
-  run(command: string | string[]): Promise<string>;
+  run(command: string | string[], options?: { timeout?: number }): Promise<string>;
   readFile(path: string): Promise<string>;
   copyTo(from: string, to: string): Promise<void>;
   copyFrom(from: string, to: string): Promise<void>;

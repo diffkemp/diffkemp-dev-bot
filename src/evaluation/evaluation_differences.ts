@@ -18,7 +18,9 @@ export class EvaluationDifferences {
     prResults.forEach((result, title) => {
       const baseResult = base.getResultForExperiment(title);
       if (baseResult === undefined) {
-        throw new Error(`Missing based result for ${title}`);
+        // throw new Error(`Missing based result for ${title}`);
+        // For now, allowing missing results - e.g. because of timeout.
+        return;
       }
       this.differences.push(result.compare(baseResult));
     });
