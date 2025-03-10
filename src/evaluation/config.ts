@@ -5,11 +5,7 @@
  */
 
 import { Context, Logger } from "probot";
-import {
-  getDefaultBranchSHA,
-  getInstallationToken,
-  getPRRepoAndBranch,
-} from "../utils/comments.js";
+import { getDefaultBranchSHA, getInstallationToken, getPR } from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command, Option } from "commander";
 import {
@@ -90,20 +86,25 @@ export class EvaluationConfig {
    * @returns Promise with configuration.
    */
   static async fromIssueComment(context: Context<"issue_comment">) {
-    const { repo: prRepo, branch: prBranch } = await getPRRepoAndBranch(context);
-    const {
-      private: isPrivate,
-      full_name: baseRepo,
-      default_branch: baseBranch,
-    } = context.payload.repository;
+    const prInfo = await getPR(context);
+    const { private: isPrivate } = context.payload.repository;
     // If the repository is private we need to get token, so we can clone the repo.
     const token = isPrivate ? await getInstallationToken(context) : undefined;
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
     const logger = context.log;
-    const baseSHA = await getDefaultBranchSHA(context);
+    // For open PRs use current master
+    let baseBranch: string, baseRepo: string, baseSHA: string;
+    if (prInfo.state === "open") {
+      ({ default_branch: baseBranch, full_name: baseRepo } = context.payload.repository);
+      baseSHA = await getDefaultBranchSHA(context);
+    }
+    // For closed PRs used the previous commit.
+    else {
+      ({ baseSHA, baseRepo, baseSHA: baseBranch } = prInfo);
+    }
     return new EvaluationConfig({
-      prBranch,
-      prRepo,
+      prBranch: prInfo.prBranch,
+      prRepo: prInfo.prRepo,
       baseBranch,
       baseRepo,
       token,

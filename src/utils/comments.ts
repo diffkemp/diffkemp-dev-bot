@@ -64,16 +64,20 @@ export async function createComment(context: Context<"issue_comment">, body: str
 }
 
 /**
- * Gets name of repository and branch of PR on which the comment was made, expects that the comment
- * was made on PR and not on an issue.
+ * Gets info about PR on which the comment was made, expects that the comment was made on PR and not
+ * on an issue.
  *
- * @returns Returns promise with repository <owner/repo> and branch name.
+ * @returns Returns promise with pr info.
  */
-export async function getPRRepoAndBranch(context: Context<"issue_comment">) {
+export async function getPR(context: Context<"issue_comment">) {
   const { data } = await context.octokit.pulls.get(context.pullRequest());
   return {
-    repo: data.head.repo!.full_name,
-    branch: data.head.ref,
+    state: data.state,
+    prRepo: data.head.repo!.full_name,
+    prBranch: data.head.ref,
+    baseRepo: data.base.repo.full_name,
+    baseSHA: data.base.sha,
+    prSHA: data.head.sha,
   };
 }
 
