@@ -69,6 +69,7 @@ export class Evaluation {
     const cachingOption = {
       restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
       cache: this.config.cachePrSnapshots ? this.config.prSHA : undefined,
+      forceCaching: this.config.forceCaching,
     };
     const evaluation = new VersionEvaluation(
       this.abortController.signal,
@@ -107,6 +108,7 @@ export class Evaluation {
     const results = await baseEvaluation.runExperiments({
       cache: this.config.cacheBaseSnapshots ? this.config.baseSHA : undefined,
       restore: this.config.baseSHA,
+      forceCaching: this.config.forceCaching,
     });
     if (this.config.cacheBaseResults) {
       if (results.hasFailed()) {
@@ -134,7 +136,10 @@ export class Evaluation {
       new ExperimentSelection(),
       this.config.token,
     );
-    const results = await evaluation.runExperiments({ cache: this.config.baseSHA });
+    const results = await evaluation.runExperiments({
+      cache: this.config.baseSHA,
+      forceCaching: this.config.forceCaching,
+    });
     if (results.hasFailed()) {
       this.config.logger.error(
         results.getFailedErrors(),
@@ -194,9 +199,14 @@ class VersionEvaluation {
    *   only compares them.
    * @param snapshotsCaching.cache Key for caching snapshots, if provided caches snapshots after the
    *   experiments are done.
+   * @param snapshotsCaching.forceCaching Saves snapshots even if some experiments failed.
    * @note If some experiment failed when running, the snapshots are not cached.
    */
-  async runExperiments(snapshotsCaching?: { restore?: string; cache?: string }) {
+  async runExperiments(snapshotsCaching?: {
+    restore?: string;
+    cache?: string;
+    forceCaching?: boolean;
+  }) {
     using container = new Container(this.abortSignal);
     const diffkemp = new DiffKemp(container, this.repo, this.branch);
     await diffkemp.setup(this.token);
@@ -209,7 +219,7 @@ class VersionEvaluation {
       resultsPromises.push(runner.run(this.experimentOptions));
     });
     const results = new EvaluationResults(await Promise.all(resultsPromises));
-    if (snapshotsCaching?.cache && !results.hasFailed()) {
+    if (snapshotsCaching?.cache && (snapshotsCaching.forceCaching || !results.hasFailed())) {
       await this.cacheSnapshots(diffkemp, snapshotsCaching.cache);
     }
     this.abortSignal.throwIfAborted();

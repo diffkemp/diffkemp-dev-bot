@@ -51,6 +51,8 @@ export class EvaluationConfig {
   /** Caching of Pr results and snapshots by default turned off but can be overridden. */
   cachePrResults = false;
   cachePrSnapshots = false;
+  /** Forces caching even if some experiments failed. */
+  forceCaching = false;
 
   constructor(params: EvaluationConfigParams) {
     this.prRepo = params.prRepo;
@@ -77,6 +79,9 @@ export class EvaluationConfig {
     }
     if (params.cachePrSnapshots) {
       this.cachePrSnapshots = params.cachePrSnapshots;
+    }
+    if (params.forceCaching) {
+      this.forceCaching = params.forceCaching;
     }
   }
   /**
@@ -220,6 +225,8 @@ interface EvaluationConfigParams {
    * not cached.
    */
   cachePrSnapshots?: boolean;
+  /** Forces caching even if some experiments failed, by default turned off. */
+  forceCaching?: boolean;
 }
 
 /** Type representing options provided by user for running evaluation. */

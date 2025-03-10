@@ -87,6 +87,7 @@ class PastPrAnalysis {
       cacheBaseSnapshots: true,
       cachePrSnapshots: true,
       cachePrResults: true,
+      forceCaching: true,
     });
     const evaluation = new Evaluation(config);
     const logPath = join(this.resultsDirectory, prNumber.toString() + ".md");
