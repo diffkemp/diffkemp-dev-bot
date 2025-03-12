@@ -21,6 +21,8 @@ export class DiffKemp {
   private pathToBinDir = "/diffkemp-bin";
   /** Container in which is DiffKemp setup. */
   readonly container;
+  /** If the DiffKemp development shell uses gcc13+, crucial for building of RHEL 8.4+. */
+  private gcc13Plus?: boolean;
   /**
    * @param container Container where will be DiffKemp setup.
    * @param repo <owner-name/repository-name>
@@ -99,10 +101,34 @@ export class DiffKemp {
     if (command instanceof Array) {
       command = command.join(" ");
     }
-    return this.container.run(
-      `nix develop ${this.directory} --command bash -c '${command}'`,
-      options,
+    /** Check what version is in development shell. */
+    await this.checkGccVersion();
+    /**
+     * If shell (DiffKemp flake.nix) contains gcc v12- we need to add gcc13 so we can build RHEL
+     * kernel v8.4+.
+     */
+    const commandToRun = this.gcc13Plus
+      ? `nix develop ${this.directory} --command bash -c '${command}'`
+      : `nix develop ${this.directory} --command nix-shell -p gcc13 --run '${command}'`;
+    return this.container.run(commandToRun, options);
+  }
+  /** Checks gcc version, if it is not already known. Sets the gcc13Plus attribute. */
+  private async checkGccVersion() {
+    if (this.gcc13Plus === undefined) {
+      if ((await this.getGccMajorVersion()) < 13) {
+        this.gcc13Plus = false;
+      } else {
+        this.gcc13Plus = true;
+      }
+    }
+  }
+  /** Returns major version of gcc in development shell. */
+  private async getGccMajorVersion() {
+    const version = await this.container.run(
+      `nix develop ${this.directory} --command gcc -dumpversion`,
     );
+    const major = Number(version.split(".")[0]);
+    return major;
   }
   /** Returns latest LLVM version which DiffKemp supports. */
   async getLlvmVersion() {
