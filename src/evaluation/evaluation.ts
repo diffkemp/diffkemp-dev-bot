@@ -9,6 +9,7 @@ import { DiffKemp } from "../diffkemp.js";
 import { EvaluationAbort } from "./abort.js";
 import { Cache } from "./cache.js";
 import { EvaluationConfig } from "./config.js";
+import { EvaluationDifferences } from "./evaluation_differences.js";
 import { EvaluationResults } from "./evaluation_results.js";
 import { EqBenchRunner } from "./experiments/eqbench.js";
 import {
@@ -43,6 +44,7 @@ export class Evaluation {
    * @note This method can be called only when info about PR is provided in the config.
    */
   async run() {
+    this.config.logger.info("Running evaluation");
     this.abortController.signal.throwIfAborted();
     if (this.config.prRepo === undefined || this.config.prBranch === undefined) {
       throw new Error("Info about PR must be provided in the config!");
@@ -53,11 +55,19 @@ export class Evaluation {
     const [prResults, baseResults] = await Promise.all([prResultsPromise, baseResultsPromise]);
 
     const results = prResults.compare(baseResults);
+    this.logErrors(results);
     this.abortController.signal.throwIfAborted();
+    this.config.logger.info("Running evaluation -- done");
     return results;
+  }
+  private logErrors(results: EvaluationDifferences) {
+    results.getFailedErrors().forEach((error) => {
+      this.config.logger.error(error);
+    });
   }
   /** Runs experiments on a PR. */
   private async runPr() {
+    this.config.logger.debug("Evaluation: Run PR");
     const runnerOptions: ExperimentRunnerOptions = {};
     runnerOptions.cmpOpts = [];
     if (this.config.options?.prCmpOpt) {
@@ -83,6 +93,7 @@ export class Evaluation {
     if (this.config.cachePrResults && this.config.prSHA) {
       await results.cache(this.config.prSHA);
     }
+    this.config.logger.debug("Evaluation: Run PR -- done");
     return results;
   }
   /**
@@ -91,9 +102,13 @@ export class Evaluation {
    * cached.
    */
   private async restoreOrRunBase() {
+    this.config.logger.debug("Evaluation: Restore or run base");
     if (this.config.restoreBaseResults()) {
       const results = await EvaluationResults.restoreFromCache(this.config.baseSHA);
-      if (results) return results;
+      if (results) {
+        this.config.logger.debug("Base results restored from cache");
+        return results;
+      }
     }
     const baseEvaluation = new VersionEvaluation(
       this.abortController.signal,
@@ -120,6 +135,7 @@ export class Evaluation {
         await results.cache(this.config.baseSHA);
       }
     }
+    this.config.logger.debug("Evaluation: Restore or run base -- done");
     return results;
   }
   /**
@@ -127,6 +143,7 @@ export class Evaluation {
    * The results are not cached if some experiment failed.
    */
   async runOnlyBase() {
+    this.config.logger.info("Running evaluation on only base branch");
     this.abortController.signal.throwIfAborted();
     const evaluation = new VersionEvaluation(
       this.abortController.signal,
@@ -149,6 +166,7 @@ export class Evaluation {
       await results.cache(this.config.baseSHA);
     }
     this.abortController.signal.throwIfAborted();
+    this.config.logger.info("Running evaluation on only base branch -- done");
     return results;
   }
 
@@ -158,6 +176,7 @@ export class Evaluation {
 
   /** Aborts evaluation. */
   abort(reason: string) {
+    this.config.logger.info("Aborting evaluation");
     this.abortController.abort(new EvaluationAbort(reason));
   }
 }

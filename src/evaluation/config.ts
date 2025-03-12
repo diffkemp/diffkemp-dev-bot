@@ -91,7 +91,6 @@ export class EvaluationConfig {
     // If the repository is private we need to get token, so we can clone the repo.
     const token = isPrivate ? await getInstallationToken(context) : undefined;
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
-    const logger = context.log;
     // For open PRs use current master
     let baseBranch: string, baseRepo: string, baseSHA: string;
     if (prInfo.state === "open") {
@@ -102,6 +101,8 @@ export class EvaluationConfig {
     else {
       ({ baseSHA, baseRepo, baseSHA: baseBranch } = prInfo);
     }
+    const prNumber = context.payload.issue.number;
+    const logger = context.log.child({ evalType: `PR comment (${prNumber})` });
     return new EvaluationConfig({
       prBranch: prInfo.prBranch,
       prRepo: prInfo.prRepo,
@@ -126,7 +127,8 @@ export class EvaluationConfig {
     } = context.payload.repository;
     // If the repository is private we need to get token, so we can clone the repo.
     const token = isPrivate ? await getInstallationToken(context) : undefined;
-    const logger = context.log;
+    const prSHA = context.payload.after;
+    const logger = context.log.child({ evalType: `master push (${prSHA})` });
     const baseSHA = await getDefaultBranchSHA(context);
     return new EvaluationConfig({
       baseBranch,
@@ -156,7 +158,7 @@ export class EvaluationConfig {
       repo,
       branch: default_branch,
     });
-    const logger = context.log;
+    const logger = context.log.child({ evalType: "installation" });
     return new EvaluationConfig({
       baseBranch: default_branch,
       baseRepo: repository.full_name,

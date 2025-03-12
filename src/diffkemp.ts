@@ -110,7 +110,14 @@ export class DiffKemp {
     const commandToRun = this.gcc13Plus
       ? `nix develop ${this.directory} --command bash -c '${command}'`
       : `nix develop ${this.directory} --command nix-shell -p gcc13 --run '${command}'`;
-    return this.container.run(commandToRun, options);
+    try {
+      return await this.container.run(commandToRun, options);
+    } catch (e) {
+      throw new Error(
+        `Error when running command in DiffKemp development shell (repo ${this.repo}, branch ${this.branch})`,
+        { cause: e },
+      );
+    }
   }
   /** Checks gcc version, if it is not already known. Sets the gcc13Plus attribute. */
   private async checkGccVersion() {

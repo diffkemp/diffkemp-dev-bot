@@ -75,7 +75,10 @@ export class Container implements Disposable, IContainer {
       if (options?.timeout && Date.now() - startTime >= options.timeout) {
         throw new TimeoutError(`Error: Time for command exceeded (${command.toString()})`);
       }
-      throw e;
+      throw new Error(
+        `Error when running command (${command.toString()}) in container ${this.id}`,
+        { cause: e },
+      );
     }
   }
   /** Returns promise with a content of a file from the container. */

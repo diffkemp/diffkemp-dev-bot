@@ -27,22 +27,26 @@ export class Cache {
   }
   /** Return cached results, returns null if results are not cached. */
   static async restoreResults(key: string): Promise<SuccessfulExperimentResults[] | null> {
-    const dir = join(Cache.CACHE_DIR, "results", key);
-    if (!existsSync(dir)) {
-      return null;
-    }
-    const resultFiles = await readdir(dir);
-    const results = Array<SuccessfulExperimentResults>();
-    for (const fileName of resultFiles) {
-      if (!fileName.endsWith(".json")) {
-        continue;
+    try {
+      const dir = join(Cache.CACHE_DIR, "results", key);
+      if (!existsSync(dir)) {
+        return null;
       }
-      const file = join(dir, fileName);
-      const fileContent = await readFile(file, { encoding: "utf-8" });
-      const json = JSON.parse(fileContent) as object;
-      results.push(await SuccessfulExperimentResults.createFromJSON(json));
+      const resultFiles = await readdir(dir);
+      const results = Array<SuccessfulExperimentResults>();
+      for (const fileName of resultFiles) {
+        if (!fileName.endsWith(".json")) {
+          continue;
+        }
+        const file = join(dir, fileName);
+        const fileContent = await readFile(file, { encoding: "utf-8" });
+        const json = JSON.parse(fileContent) as object;
+        results.push(await SuccessfulExperimentResults.createFromJSON(json));
+      }
+      return results;
+    } catch (e) {
+      throw new Error(`Error: Unsuccessful restoration of results for ${key}`, { cause: e });
     }
-    return results;
   }
   /**
    * Caches snapshots from the container.

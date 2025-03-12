@@ -100,6 +100,7 @@ export class EvaluationManager {
     if (updatesNix(context)) {
       context.log.info("Rebuilding container image");
       await Container.rebuildImage();
+      context.log.info("Rebuilding container image -- done");
     }
   }
 

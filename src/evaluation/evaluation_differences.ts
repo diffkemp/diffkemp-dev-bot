@@ -44,11 +44,14 @@ export class EvaluationDifferences {
     return false;
   }
   /** Returns errors of failed experiments. */
-  public getFailedErrors(): (Error | undefined)[] {
-    const errors = new Array<Error | undefined>();
+  public getFailedErrors(): Error[] {
+    const errors = new Array<Error>();
     for (const difference of this.differences.values()) {
       if (difference instanceof FailedExperimentDifferences) {
-        errors.push(difference.getError());
+        const error = difference.getError();
+        if (error) {
+          errors.push(error);
+        }
       }
     }
     return errors;
