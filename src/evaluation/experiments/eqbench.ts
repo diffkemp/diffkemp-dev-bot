@@ -21,6 +21,7 @@ import {
   FailedExperiment,
 } from "./experiment.js";
 import { ExperimentTitle } from "./titles.js";
+import { ExecFileException } from "child_process";
 
 /** Configuration of EqBench runner. */
 interface EqBenchConfig {
@@ -133,9 +134,33 @@ export class EqBenchRunner implements ExperimentRunner {
       snapDir,
     ];
     command.push(...options);
-    await this.diffkemp.runInDevelopmentEnv(command);
+    try {
+      await this.diffkemp.runInDevelopmentEnv(command);
+    } catch (error) {
+      await this.buildAndCompareErrorHandling(command, error as Error);
+    }
     const result = EqBenchResult.fromOutputDir(description, this.diffkemp.container, resultDir);
     return result;
+  }
+  /** Handles error thrown during building and comparing EqBench benchmark. */
+  private async buildAndCompareErrorHandling(command: string[], error: Error): Promise<undefined> {
+    if (command.includes("--no-opt-override") && error instanceof Error) {
+      // If `--no-opt-override` was used in the command, the error can be caused by running the evaluation
+      // on and older PR, where `--no-opt-override` command did not yet existed.
+      // If this is the case, rerun the command without `--no-opt-override`.
+      let e = error;
+      // Get the original error.
+      while (e.cause && e.cause instanceof Error) e = e.cause;
+      if (
+        !(e as ExecFileException)?.stderr?.includes("unrecognized arguments: --no-opt-override")
+      ) {
+        throw error;
+      }
+      const newCommand = command.filter((arg) => arg != "--no-opt-override");
+      await this.diffkemp.runInDevelopmentEnv(newCommand);
+    } else {
+      throw error;
+    }
   }
 }
 
