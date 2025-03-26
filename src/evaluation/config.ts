@@ -205,7 +205,8 @@ interface EvaluationConfigParams {
   baseSHA: string;
   /**
    * SHA of a PR, does not have to be provided but without it the PR snapshots and results cannot be
-   * cached.
+   * cached. If specified when recovering snapshots it tries to firstly recover snapshot created
+   * specifically on given PR (if does not exist tries to recover snapshot created on base branch).
    */
   prSHA?: string;
   /**

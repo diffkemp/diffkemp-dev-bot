@@ -77,10 +77,19 @@ export class Evaluation {
       runnerOptions.cmpOpts.push(...this.config.options.cmpOpt);
     }
     const cachingOption = {
-      restore: this.config.options?.rebuild ? undefined : this.config.baseSHA,
+      restore: new Array<string>(),
       cache: this.config.cachePrSnapshots ? this.config.prSHA : undefined,
       forceCaching: this.config.forceCaching,
     };
+    // Configuration of snapshots recovering.
+    // Recovers snapshots created on PR (if exists), otherwise on base branch.
+    // Note: If snapshots were recovered from base branch and PR snapshots caching
+    // is enabled, they will be saved also as PR snapshots (which can be unexpected
+    // behavior).
+    if (!this.config.options?.rebuild) {
+      if (this.config.prSHA) cachingOption.restore.push(this.config.prSHA);
+      cachingOption.restore.push(this.config.baseSHA);
+    }
     const evaluation = new VersionEvaluation(
       this.abortController.signal,
       this.config.prRepo!,
@@ -122,7 +131,7 @@ export class Evaluation {
     // Note: Try to also restore snapshots from cache - e.g. case when evaluation with user supplied comparison options.
     const results = await baseEvaluation.runExperiments({
       cache: this.config.cacheBaseSnapshots ? this.config.baseSHA : undefined,
-      restore: this.config.baseSHA,
+      restore: [this.config.baseSHA],
       forceCaching: this.config.forceCaching,
     });
     if (this.config.cacheBaseResults) {
@@ -214,15 +223,15 @@ class VersionEvaluation {
    * Run experiments and returns promise containing results.
    *
    * @param snapshotsCaching Option for setting caching of snapshots.
-   * @param snapshotsCaching.restore Key for restoring snapshots, if provided restores snapshots and
-   *   only compares them.
+   * @param snapshotsCaching.restore Keys for restoring snapshots, if provided restores snapshots
+   *   and only compares them. Tries the keys in order, restores the first existing.
    * @param snapshotsCaching.cache Key for caching snapshots, if provided caches snapshots after the
    *   experiments are done.
    * @param snapshotsCaching.forceCaching Saves snapshots even if some experiments failed.
    * @note If some experiment failed when running, the snapshots are not cached.
    */
   async runExperiments(snapshotsCaching?: {
-    restore?: string;
+    restore?: string[];
     cache?: string;
     forceCaching?: boolean;
   }) {
@@ -230,7 +239,11 @@ class VersionEvaluation {
     const diffkemp = new DiffKemp(container, this.repo, this.branch);
     await diffkemp.setup(this.token);
     if (snapshotsCaching?.restore) {
-      await this.restoreSnapshots(diffkemp, snapshotsCaching.restore);
+      for (const sha of snapshotsCaching.restore) {
+        if (await this.restoreSnapshots(diffkemp, sha)) {
+          break;
+        }
+      }
     }
     const runners = this.getRunners(diffkemp);
     const resultsPromises: Promise<ExperimentResults>[] = [];
@@ -245,7 +258,10 @@ class VersionEvaluation {
     return results;
   }
   private async restoreSnapshots(diffkemp: DiffKemp, sha: string) {
-    await Cache.restoreSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);
+    return await Cache.restoreSnapshots(
+      await this.getSnapshotCacheKey(diffkemp, sha),
+      diffkemp.container,
+    );
   }
   private async cacheSnapshots(diffkemp: DiffKemp, sha: string) {
     await Cache.cacheSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);
