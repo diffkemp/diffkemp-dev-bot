@@ -22,8 +22,10 @@ export class Differences {
   public comparedDiffering = new Map<string, string[]>();
   /** Reverse map, mapping differing function to list of compared where it belongs. */
   private differingCompared = new Map<string, Set<string>>();
+  /** Maps name of differing function with location in old file and new file. */
+  private differingDefs = new Map<string, DKOutDefinition>();
 
-  constructor(comparedDiffering: Map<string, string[]>) {
+  constructor(comparedDiffering: Map<string, string[]>, definitions?: DKOutDefinitions) {
     this.comparedDiffering = comparedDiffering;
     comparedDiffering.forEach((diffs, compared) => {
       diffs.forEach((diff) => {
@@ -34,6 +36,14 @@ export class Differences {
         }
       });
     });
+    if (!definitions) {
+      return;
+    }
+    for (const differing of this.differingCompared.keys()) {
+      if (definitions[differing]) {
+        this.differingDefs.set(differing, definitions[differing]);
+      }
+    }
   }
   /** Extracts info about differing functions from output directory of DiffKemp compare command. */
   public static async fromContainer(container: IContainer, outDir: string): Promise<Differences> {
@@ -56,16 +66,17 @@ export class Differences {
       const differingFuns = result.diffs.map((diff) => diff.function).sort();
       comparedDiffering.set(cmpFun, differingFuns);
     });
-    return new Differences(comparedDiffering);
+    return new Differences(comparedDiffering, yaml.definitions);
   }
   public toJSON(): DifferencesCached {
     return {
       comparedDiffering: Object.fromEntries(this.comparedDiffering.entries()),
+      differingDefinitions: Object.fromEntries(this.differingDefs.entries()),
     };
   }
   public static fromJSON(json: DifferencesCached) {
     const comparedDiffering = new Map(Object.entries(json.comparedDiffering));
-    return new Differences(comparedDiffering);
+    return new Differences(comparedDiffering, json.differingDefinitions);
   }
   /**
    * Returns array of compared symbols which were evaluated as non-equal. The symbols are placed in
@@ -81,10 +92,15 @@ export class Differences {
   public getDifferingCompared() {
     return this.differingCompared;
   }
+  /** Returns definition of function for function which is differing. */
+  public getDefinitionForDiffering(differing: string): DKOutDefinition | undefined {
+    return this.differingDefs.get(differing);
+  }
 }
 
 export interface DifferencesCached {
   comparedDiffering: Record<string, string[]>;
+  differingDefinitions: Record<string, DKOutDefinition>;
 }
 
 /**
@@ -135,9 +151,11 @@ export class DifferencesComparator {
       } else {
         const arr = inBase ? onlyInBase : onlyInPr;
         const dc = inBase ? baseDC : prDC;
+        const side = inBase ? this.base : this.pr;
         arr.push({
           differing,
           compared: dc.get(differing)!,
+          definition: side.getDefinitionForDiffering(differing),
         });
       }
     }
@@ -178,16 +196,22 @@ ${this._reportDiffering(onlyInBase)}
   /**
    * Reports differing for base or pr.
    *
-   * @returns Returns string in format `- differing (in cmp1, cmp2, cmp3)`;
+   * @returns Returns string in format `- differing [old.c:start:end, new.c:start:end] (in cmp1,
+   *   cmp2, cmp3)`;
    */
   private _reportDiffering(differings: DifferingInfo[]) {
+    const formatDefinition = (def?: { file?: string; line?: number; ["end-line"]?: number }) =>
+      def ? `${def.file}:${def.line}:${def["end-line"]}` : "";
     return differings
-      .map(
-        (differing) =>
-          `- \`${differing.differing}\` (in ${Array.from(differing.compared.values())
-            .map((name) => "`" + name + "`")
-            .join(", ")})`,
-      )
+      .map(({ differing, compared, definition }) => {
+        const comparedList = Array.from(compared)
+          .map((name) => `\`${name}\``)
+          .join(", ");
+
+        const oldDef = formatDefinition(definition?.old);
+        const newDef = formatDefinition(definition?.new);
+        return `- \`${differing}\` [${oldDef}, ${newDef}] (in ${comparedList})`;
+      })
       .join("\n");
   }
 }
@@ -198,6 +222,8 @@ export interface DifferingInfo {
   differing: string;
   /** Name of compared functions. */
   compared: Set<string>;
+  /** Definition for differing functions. */
+  definition?: DKOutDefinition;
 }
 
 /** Format of `diffkemp-out.yaml` file, contains only used fields. */
@@ -210,4 +236,21 @@ export interface DiffKempOutputFormat {
       function: string;
     }[];
   }[];
+  definitions?: DKOutDefinitions;
+}
+
+/** Format of definitions of functions from diffkemp-out.yaml. */
+type DKOutDefinitions = Record<string, DKOutDefinition>;
+/** Format of definition of old/new function from diffkemp-out.yaml. */
+export interface DKOutDefinition {
+  old?: {
+    file?: string;
+    line?: number;
+    ["end-line"]?: number;
+  };
+  new?: {
+    file?: string;
+    line?: number;
+    ["end-line"]?: number;
+  };
 }

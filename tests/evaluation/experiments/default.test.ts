@@ -25,7 +25,21 @@ const createResult = () => {
   differences.set("__alloc_pages_nodemask", ["__alloc_pages_slowpath", "pv_queued_spin_unlock"]);
   differences.set("__alloc_skb", ["__alloc_skb"]);
   differences.set("__alloc_workqueue_key", ["pv_queued_spin_unlock"]);
-  return new DefaultResult("8.0-8.1", stats, new Differences(differences));
+  const definitions = {
+    __alloc_skb: {
+      old: {
+        line: 327,
+        file: "old.c",
+        "end-line": 358,
+      },
+      new: {
+        line: 367,
+        file: "new.c",
+        "end-line": 398,
+      },
+    },
+  };
+  return new DefaultResult("8.0-8.1", stats, new Differences(differences, definitions));
 };
 
 describe("DefaultResult", () => {
@@ -109,7 +123,24 @@ describe("DefaultResults", () => {
         { differing: "x", compared: new Set(["__alloc_pages_nodemask"]) },
         { differing: "baz", compared: new Set(["foo1", "foo2"]) },
       ],
-      onlyInBase: [{ differing: "__alloc_skb", compared: new Set(["__alloc_skb"]) }],
+      onlyInBase: [
+        {
+          differing: "__alloc_skb",
+          compared: new Set(["__alloc_skb"]),
+          definition: {
+            old: {
+              line: 327,
+              file: "old.c",
+              "end-line": 358,
+            },
+            new: {
+              line: 367,
+              file: "new.c",
+              "end-line": 398,
+            },
+          },
+        },
+      ],
     });
   });
 
