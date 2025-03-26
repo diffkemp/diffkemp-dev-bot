@@ -41,6 +41,7 @@ export class DiffKemp {
   async setup(token?: string) {
     await this._clone(token);
     await this._build();
+    await this.runInDevelopmentEnv("echo check");
   }
   /** Clones DiffKemp repository with specified branch. */
   private async _clone(token?: string) {
