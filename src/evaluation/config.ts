@@ -49,6 +49,11 @@ export class EvaluationConfig {
   cachePrSnapshots = false;
   /** Forces caching even if some experiments failed. */
   forceCaching = false;
+  /**
+   * If true caches the directories with comparison results (note: that the prSHA must be provided
+   * to cache also results for PRs).
+   */
+  detailedResultsCaching = false;
 
   constructor(params: EvaluationConfigParams) {
     this.prRepo = params.prRepo;
@@ -78,6 +83,9 @@ export class EvaluationConfig {
     }
     if (params.forceCaching) {
       this.forceCaching = params.forceCaching;
+    }
+    if (params.detailedResultsCaching) {
+      this.detailedResultsCaching = params.detailedResultsCaching;
     }
   }
   /**
@@ -231,6 +239,8 @@ interface EvaluationConfigParams {
   cachePrSnapshots?: boolean;
   /** Forces caching even if some experiments failed, by default turned off. */
   forceCaching?: boolean;
+  /** If true caches the directories with comparison results. */
+  detailedResultsCaching?: boolean;
 }
 
 /** Type representing options provided by user for running evaluation. */

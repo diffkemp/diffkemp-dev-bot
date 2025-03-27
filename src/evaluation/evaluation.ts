@@ -90,6 +90,9 @@ export class Evaluation {
       if (this.config.prSHA) cachingOption.restore.push(this.config.prSHA);
       cachingOption.restore.push(this.config.baseSHA);
     }
+    const detailedResultsCaching = {
+      cache: this.config.detailedResultsCaching ? this.config.prSHA : undefined,
+    };
     const evaluation = new VersionEvaluation(
       this.abortController.signal,
       this.config.prRepo!,
@@ -98,7 +101,7 @@ export class Evaluation {
       this.selectedExperiments,
       this.config.token,
     );
-    const results = await evaluation.runExperiments(cachingOption);
+    const results = await evaluation.runExperiments(cachingOption, detailedResultsCaching);
     if (this.config.cachePrResults && this.config.prSHA) {
       await results.cache(this.config.prSHA);
     }
@@ -127,13 +130,18 @@ export class Evaluation {
       this.selectedExperiments,
       this.config.token,
     );
-
+    const detailedResultsCaching = {
+      cache: this.config.detailedResultsCaching ? this.config.baseSHA : undefined,
+    };
     // Note: Try to also restore snapshots from cache - e.g. case when evaluation with user supplied comparison options.
-    const results = await baseEvaluation.runExperiments({
-      cache: this.config.cacheBaseSnapshots ? this.config.baseSHA : undefined,
-      restore: [this.config.baseSHA],
-      forceCaching: this.config.forceCaching,
-    });
+    const results = await baseEvaluation.runExperiments(
+      {
+        cache: this.config.cacheBaseSnapshots ? this.config.baseSHA : undefined,
+        restore: [this.config.baseSHA],
+        forceCaching: this.config.forceCaching,
+      },
+      detailedResultsCaching,
+    );
     if (this.config.cacheBaseResults) {
       if (results.hasFailed()) {
         this.config.logger.error(
@@ -162,10 +170,16 @@ export class Evaluation {
       new ExperimentSelection(),
       this.config.token,
     );
-    const results = await evaluation.runExperiments({
-      cache: this.config.baseSHA,
-      forceCaching: this.config.forceCaching,
-    });
+    const detailedResultsCaching = {
+      cache: this.config.detailedResultsCaching ? this.config.baseSHA : undefined,
+    };
+    const results = await evaluation.runExperiments(
+      {
+        cache: this.config.baseSHA,
+        forceCaching: this.config.forceCaching,
+      },
+      detailedResultsCaching,
+    );
     if (results.hasFailed()) {
       this.config.logger.error(
         results.getFailedErrors(),
@@ -228,13 +242,21 @@ class VersionEvaluation {
    * @param snapshotsCaching.cache Key for caching snapshots, if provided caches snapshots after the
    *   experiments are done.
    * @param snapshotsCaching.forceCaching Saves snapshots even if some experiments failed.
+   * @param detailedResultsCaching Allows to cache the directories with results of comparison for
+   *   all experiments.
+   * @param detailedResultsCaching.cache Key for caching it.
    * @note If some experiment failed when running, the snapshots are not cached.
    */
-  async runExperiments(snapshotsCaching?: {
-    restore?: string[];
-    cache?: string;
-    forceCaching?: boolean;
-  }) {
+  async runExperiments(
+    snapshotsCaching?: {
+      restore?: string[];
+      cache?: string;
+      forceCaching?: boolean;
+    },
+    detailedResultsCaching?: {
+      cache?: string;
+    },
+  ) {
     using container = new Container(this.abortSignal);
     const diffkemp = new DiffKemp(container, this.repo, this.branch);
     await diffkemp.setup(this.token);
@@ -254,6 +276,9 @@ class VersionEvaluation {
     if (snapshotsCaching?.cache && (snapshotsCaching.forceCaching || !results.hasFailed())) {
       await this.cacheSnapshots(diffkemp, snapshotsCaching.cache);
     }
+    if (detailedResultsCaching?.cache) {
+      await this.cacheDetailedResults(diffkemp, detailedResultsCaching.cache);
+    }
     this.abortSignal.throwIfAborted();
     return results;
   }
@@ -265,6 +290,9 @@ class VersionEvaluation {
   }
   private async cacheSnapshots(diffkemp: DiffKemp, sha: string) {
     await Cache.cacheSnapshots(await this.getSnapshotCacheKey(diffkemp, sha), diffkemp.container);
+  }
+  private async cacheDetailedResults(diffkemp: DiffKemp, sha: string) {
+    await Cache.cacheDetailedResults(sha, diffkemp.container);
   }
   /** Returns key for caching and restoring snapshots to/from cache. */
   private async getSnapshotCacheKey(diffkemp: DiffKemp, sha: string) {

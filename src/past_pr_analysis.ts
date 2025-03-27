@@ -87,6 +87,7 @@ class PastPrAnalysis {
       cacheBaseSnapshots: true,
       cachePrSnapshots: true,
       cachePrResults: true,
+      detailedResultsCaching: true,
       forceCaching: true,
     });
     const evaluation = new Evaluation(config);

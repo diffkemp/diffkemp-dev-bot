@@ -25,6 +25,14 @@ export class Cache {
       JSON.stringify(results, null, NUMBER_OF_SPACES),
     );
   }
+  /** Caching directory containing comparison results. */
+  static async cacheDetailedResults(key: string, container: IContainer) {
+    const dir = join(Cache.CACHE_DIR, "results", key);
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
+    }
+    await container.copyFrom("/experiments/results", dir);
+  }
   /** Return cached results, returns null if results are not cached. */
   static async restoreResults(key: string): Promise<SuccessfulExperimentResults[] | null> {
     try {
