@@ -125,7 +125,7 @@ export class EvaluationManager {
             if (labelGroup) {
               await removeLabelsOnIssue(context, labelGroup);
             }
-            await createComment(context, result.report());
+            await createComment(context, await result.report());
             const labels = result.getLabels();
             await createLabelsOnIssue(context, labels);
             await createCommitStatuses(context, labels);

@@ -348,8 +348,8 @@ export class EqBenchDifference extends ExperimentDifference {
    * Reports detail information about differences of results between the two DiffKemp versions in
    * markdown format.
    */
-  reportDetails() {
-    return `
+  async reportDetails() {
+    return Promise.resolve(`
 <details>
 
 <summary>Details for ${this.description}</summary>
@@ -373,7 +373,7 @@ ${this.perProgram.FN.size > 0 ? "#### New false negatives" : ""}
 ${this.getProgramList(this.perProgram.FN)}
 
 </details>
-    `;
+    `);
   }
 
   /** Returns list of programs in markdown format with links to source files. */

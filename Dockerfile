@@ -42,6 +42,9 @@ RUN mkdir -p /experiments/sources && \
 RUN mkdir /tools && \
     git clone https://github.com/PLukas2018/EqBench-workflow -b evaluation-enhancements --depth 1 /tools/eqbench
 
+# Additional dependencies
+RUN nix-env -iA nixpkgs.gnused nixpkgs.diffutils
+
 # For image rebuilds - install latest DiffKemp nix dependencies
 ARG DIFFKEMP_NIX_CACHEBUST=""
 RUN if [[ -n "${DIFFKEMP_NIX_CACHEBUST}" ]] ; then \

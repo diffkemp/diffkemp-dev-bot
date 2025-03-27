@@ -67,12 +67,12 @@ export class EvaluationDifferences {
     return titles;
   }
   /** Return report with differences of evaluation. */
-  report() {
+  async report() {
     const reportString: string[] = [];
     reportString.push("# Results of evaluation");
-    this.differences.forEach((difference) => {
-      reportString.push(difference.report());
-    });
+    for (const difference of this.differences.values()) {
+      reportString.push(await difference.report());
+    }
     return reportString.join("\n");
   }
 }

@@ -114,7 +114,7 @@ class PastPrAnalysis {
       logPath,
       `- **verdict**: ${noDifferences ? "same results" : "different results"} \n\n`,
     );
-    await appendFile(logPath, results.report(), { encoding: "utf8" });
+    await appendFile(logPath, await results.report(), { encoding: "utf8" });
     if (results.hasFailed()) {
       console.log(`\tError: ${results.getFailedTitles().join(", ")}`);
       await appendFile(logPath, "\n## Errors: \n", { encoding: "utf8" });

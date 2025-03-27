@@ -3,11 +3,13 @@
  *
  * @author Lukas Petr
  */
-import { execFile, execSync } from "child_process";
+import { execFile, ExecFileException, execSync } from "child_process";
 import { join } from "path";
 import { promisify } from "util";
 
 const execFilePromisify = promisify(execFile);
+const UNIFIED_HUNK_HEAD_REGEX =
+  /^@@ -(?<fromStart>\d+)(?<fromCount>(?:,\d+)?) \+(?<toStart>\d+)(?<toCount>(?:,\d+)?) @@$/;
 
 /** Error thrown by the container because timeout of command was reached. */
 export class TimeoutError extends Error {
@@ -123,6 +125,44 @@ export class Container implements Disposable, IContainer {
       execSync(`podman rm -f ${this.id}`);
     }
   }
+  /** Creates diff of file in the container and returns it. If no diff, returns empty string. */
+  public async createDiff(
+    oldLineStart: number,
+    oldLineEnd: number,
+    oldSrcPath: string,
+    newLineStart: number,
+    newLineEnd: number,
+    newSrcPath: string,
+  ) {
+    try {
+      await this.run([
+        "diff",
+        `<(sed -ne "${oldLineStart},${oldLineEnd}p" ${oldSrcPath})`,
+        `<(sed -ne "${newLineStart},${newLineEnd}p" ${newSrcPath})`,
+        "-U1",
+      ]);
+      return "";
+    } catch (e) {
+      if (!(e instanceof Error)) {
+        return "";
+      }
+      const error = e.cause as ExecFileException;
+      if (!error?.stdout) {
+        return "";
+      }
+      const diff = error.stdout;
+      const diffLines = diff.split("\n");
+      // Fixing lines numbers
+      diffLines.forEach((line, index) => {
+        const match = UNIFIED_HUNK_HEAD_REGEX.exec(line);
+        if (!match?.groups) return;
+        diffLines[index] =
+          `@@ -${Number(match.groups.fromStart) + oldLineStart - 1}${match.groups.fromCount} ` +
+          `+${Number(match.groups.toStart) + newLineStart - 1}${match.groups.toCount} @@`;
+      });
+      return diffLines.join("\n");
+    }
+  }
   killContainer() {
     execSync(`podman kill ${this.id}`);
     execSync(`podman rm -f ${this.id}`);
@@ -137,4 +177,12 @@ export interface IContainer {
   copyFrom(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   mkdtemp(): Promise<string>;
+  createDiff(
+    oldLineStart: number,
+    oldLineEnd: number,
+    oldSrcPath: string,
+    newLineStart: number,
+    newLineEnd: number,
+    newSrcPath: string,
+  ): Promise<string>;
 }

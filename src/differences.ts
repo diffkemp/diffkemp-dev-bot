@@ -4,7 +4,7 @@
  * @author Lukas Petr
  */
 import { mkdtemp, readFile, rm } from "fs/promises";
-import { IContainer } from "./container.js";
+import { Container, IContainer } from "./container.js";
 import { join } from "path";
 import { tmpdir } from "os";
 import { parse } from "yaml";
@@ -24,8 +24,17 @@ export class Differences {
   private differingCompared = new Map<string, Set<string>>();
   /** Maps name of differing function with location in old file and new file. */
   private differingDefs = new Map<string, DKOutDefinition>();
+  public readonly oldSrcPath?: string;
+  public readonly newSrcPath?: string;
 
-  constructor(comparedDiffering: Map<string, string[]>, definitions?: DKOutDefinitions) {
+  constructor(
+    comparedDiffering: Map<string, string[]>,
+    definitions?: DKOutDefinitions,
+    oldSrcPath?: string,
+    newSrcPath?: string,
+  ) {
+    this.oldSrcPath = oldSrcPath;
+    this.newSrcPath = newSrcPath;
     this.comparedDiffering = comparedDiffering;
     comparedDiffering.forEach((diffs, compared) => {
       diffs.forEach((diff) => {
@@ -66,17 +75,26 @@ export class Differences {
       const differingFuns = result.diffs.map((diff) => diff.function).sort();
       comparedDiffering.set(cmpFun, differingFuns);
     });
-    return new Differences(comparedDiffering, yaml.definitions);
+    const oldSrcPath = yaml["old-snapshot"]?.replace("snapshots", "sources");
+    const newSrcPath = yaml["new-snapshot"]?.replace("snapshots", "sources");
+    return new Differences(comparedDiffering, yaml.definitions, oldSrcPath, newSrcPath);
   }
   public toJSON(): DifferencesCached {
     return {
       comparedDiffering: Object.fromEntries(this.comparedDiffering.entries()),
+      oldSrcPath: this.oldSrcPath,
+      newSrcPath: this.newSrcPath,
       differingDefinitions: Object.fromEntries(this.differingDefs.entries()),
     };
   }
   public static fromJSON(json: DifferencesCached) {
     const comparedDiffering = new Map(Object.entries(json.comparedDiffering));
-    return new Differences(comparedDiffering, json.differingDefinitions);
+    return new Differences(
+      comparedDiffering,
+      json.differingDefinitions,
+      json.oldSrcPath,
+      json.newSrcPath,
+    );
   }
   /**
    * Returns array of compared symbols which were evaluated as non-equal. The symbols are placed in
@@ -99,6 +117,8 @@ export class Differences {
 }
 
 export interface DifferencesCached {
+  oldSrcPath?: string;
+  newSrcPath?: string;
   comparedDiffering: Record<string, string[]>;
   differingDefinitions: Record<string, DKOutDefinition>;
 }
@@ -181,16 +201,17 @@ export class DifferencesComparator {
     );
   }
   /** Returns report about differing functions. */
-  public reportDiffering() {
+  public async reportDiffering() {
+    using container = new Container();
     const { onlyInPr, onlyInBase } = this.compareDiffering();
     return `
 ${onlyInPr.length > 0 ? "#### New differing symbols" : ""}
 
-${this._reportDiffering(onlyInPr)}
+${await this._reportDiffering(onlyInPr, container)}
 
 ${onlyInBase.length > 0 ? "#### Eliminated differing symbols" : ""}
 
-${this._reportDiffering(onlyInBase)}
+${await this._reportDiffering(onlyInBase, container)}
 `;
   }
   /**
@@ -199,20 +220,58 @@ ${this._reportDiffering(onlyInBase)}
    * @returns Returns string in format `- differing [old.c:start:end, new.c:start:end] (in cmp1,
    *   cmp2, cmp3)`;
    */
-  private _reportDiffering(differings: DifferingInfo[]) {
+  private async _reportDiffering(
+    differings: DifferingInfo[],
+    container: IContainer,
+  ): Promise<string> {
     const formatDefinition = (def?: { file?: string; line?: number; ["end-line"]?: number }) =>
       def ? `${def.file}:${def.line}:${def["end-line"]}` : "";
-    return differings
-      .map(({ differing, compared, definition }) => {
-        const comparedList = Array.from(compared)
-          .map((name) => `\`${name}\``)
-          .join(", ");
+    return (
+      await Promise.all(
+        differings.map(async ({ differing, compared, definition }) => {
+          const comparedList = Array.from(compared)
+            .map((name) => `\`${name}\``)
+            .join(", ");
 
-        const oldDef = formatDefinition(definition?.old);
-        const newDef = formatDefinition(definition?.new);
-        return `- \`${differing}\` [${oldDef}, ${newDef}] (in ${comparedList})`;
-      })
-      .join("\n");
+          const oldDef = formatDefinition(definition?.old);
+          const newDef = formatDefinition(definition?.new);
+          const diff = await this.createDiff(container, definition);
+          return `- \`${differing}\` [${oldDef}, ${newDef}] (in ${comparedList}) ${diff}`;
+        }),
+      )
+    ).join("\n");
+  }
+  /** Creates diff based on info from definition if possible. */
+  private async createDiff(container: IContainer, definition?: DKOutDefinition): Promise<string> {
+    const oldSrcPath = this.base.oldSrcPath;
+    const newSrcPath = this.base.newSrcPath;
+    if (!oldSrcPath || !newSrcPath) {
+      return "!Error: Missing source path!";
+    }
+    if (!definition?.old || !definition?.new) {
+      return "Error: Missing definitions for the differing function!";
+    }
+    const { file: oldFile, line: oldLine, "end-line": oldEndLine } = definition.old;
+    const { file: newFile, line: newLine, "end-line": newEndLine } = definition.new;
+    if (!oldFile || !oldLine || !oldEndLine || !newFile || !newLine || !newEndLine) {
+      return "Error: Missing definitions for the differing function!";
+    }
+    const diff = await container.createDiff(
+      oldLine,
+      oldEndLine,
+      join(oldSrcPath, oldFile),
+      newLine,
+      newEndLine,
+      join(newSrcPath, newFile),
+    );
+    // Note: Skipping lines informing about files locations.
+    const diffLines = diff.split("\n").slice(2);
+    // Wrapping the diff in markdown diff block.
+    const stringBuilder = ["", "```diff"];
+    stringBuilder.push(...diffLines);
+    stringBuilder.push("```", "");
+    const indentedDiff = stringBuilder.map((line) => "    " + line);
+    return indentedDiff.join("\n");
   }
 }
 
@@ -228,6 +287,8 @@ export interface DifferingInfo {
 
 /** Format of `diffkemp-out.yaml` file, contains only used fields. */
 export interface DiffKempOutputFormat {
+  "old-snapshot"?: string;
+  "new-snapshot"?: string;
   results: {
     // Compared function name
     function: string;

@@ -156,7 +156,7 @@ export abstract class ExperimentDifference {
    * Reports detail information about differences of results between the two DiffKemp versions in
    * markdown format.
    */
-  abstract reportDetails(): string;
+  abstract reportDetails(): Promise<string>;
   /** Returns true if there is/are difference/s between the experiments. */
   abstract hasDifferences(): boolean;
 }
@@ -168,7 +168,7 @@ export abstract class ExperimentDifferences {
   public getTitle() {
     return this.title;
   }
-  public abstract report(): string;
+  public abstract report(): Promise<string>;
   /** Get group of labels which can be returned by getLabels. */
   public getLabelGroup(): LabelGroup {
     return LabelGroups[this.getTitle()];
@@ -191,8 +191,8 @@ export class FailedExperimentDifferences extends ExperimentDifferences {
     super(title);
     this.error = error;
   }
-  public report() {
-    return `## Error: ${this.getTitle()} failed\n`;
+  public async report() {
+    return await Promise.resolve(`## Error: ${this.getTitle()} failed\n`);
   }
   public hasDifferences(): boolean {
     return false;
@@ -239,16 +239,16 @@ export class SuccessfulExperimentDifferences extends ExperimentDifferences {
    * Returns string with report about differences of evaluation done by using multiple
    * configuration/versions between base branch and pr branch.
    */
-  public report() {
+  public async report() {
     const table = [];
     table.push(this.header);
 
     const detailedReports: string[] = [];
 
-    this.differences.forEach((difference) => {
+    for (const difference of this.differences.values()) {
       table.push(difference.reportLine());
-      detailedReports.push(difference.reportDetails());
-    });
+      detailedReports.push(await difference.reportDetails());
+    }
 
     return `
 ## ${this.getTitle()}

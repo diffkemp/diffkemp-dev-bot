@@ -124,7 +124,7 @@ export class DefaultDifference extends ExperimentDifference {
     return this.differencesCmp.hasDifferences();
   }
   /** Report details about differences. */
-  reportDetails(): string {
+  public async reportDetails(): Promise<string> {
     const { onlyInPr: comparedInPr, onlyInBase: comparedInBase } =
       this.differencesCmp.compareNeqFun();
 
@@ -143,7 +143,7 @@ ${comparedInBase.length > 0 ? "#### Compared symbols previously evaluated as non
 
 ${comparedInBase.map((name) => `- \`${name}\``).join("\n")}
 
-${this.differencesCmp.reportDiffering()}
+${await this.differencesCmp.reportDiffering()}
 
 </details>
     `;

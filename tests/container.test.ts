@@ -46,3 +46,30 @@ test("aborting after container is out of scope should not throw error", () => {
   }
   ac.abort();
 });
+
+test("it should be possible to create diff", async () => {
+  using container = new Container();
+  const diff = await container.createDiff(
+    1660,
+    1687,
+    "/experiments/sources/kernel/functions/linux-4.18.0-80.el8/mm/slub.c",
+    1654,
+    1676,
+    "/experiments/sources/kernel/functions/linux-4.18.0-147.el8/mm/slub.c",
+  );
+  const diffWithoutHeader = diff.split("\n").slice(2).join("\n");
+  expect(diffWithoutHeader).toBe(`@@ -1673,7 +1667,2 @@
+ 
+-	mod_lruvec_page_state(page,
+-		(s->flags & SLAB_RECLAIM_ACCOUNT) ?
+-		NR_SLAB_RECLAIMABLE : NR_SLAB_UNRECLAIMABLE,
+-		-pages);
+-
+ 	__ClearPageSlabPfmemalloc(page);
+@@ -1684,3 +1673,3 @@
+ 		current->reclaim_state->reclaimed_slab += pages;
+-	memcg_uncharge_slab(page, order, s);
++	uncharge_slab_page(page, order, s);
+ 	__free_pages(page, order);
+`);
+});
