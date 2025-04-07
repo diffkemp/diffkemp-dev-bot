@@ -11,6 +11,8 @@ import { EvaluationAbort } from "./evaluation/abort.js";
 
 /** Class for working with DiffKemp inside a container. */
 export class DiffKemp {
+  /** Path in container to directory with patches for DiffKemp. */
+  static readonly PATCHES_DIR = "/.diffkemp-patches";
   /** Owner name and repository name. */
   private repo: string;
   /** Branch name. */
@@ -42,6 +44,7 @@ export class DiffKemp {
    */
   async setup(token?: string) {
     await this._clone(token);
+    await this._applyPatches();
     await this._build();
     await this.runInDevelopmentEnv("echo check");
   }
@@ -69,6 +72,15 @@ export class DiffKemp {
       await this.container.run(command.join(" "));
       await this.container.run(`git -C ${this.directory} fetch origin ${this.branch}`);
       await this.container.run(`git -C ${this.directory} checkout ${this.branch}`);
+    }
+  }
+  /** Apply patches for analysis reason that are not yet part of DiffKemp. */
+  private async _applyPatches(): Promise<void> {
+    // Try to apply patches if they do not work, continue without them
+    try {
+      await this.container.run(`git -C ${this.directory} apply ${join(DiffKemp.PATCHES_DIR, "*")}`);
+    } catch {
+      return;
     }
   }
   /** Returns url for cloning repo, for private repo, token is necessary. */

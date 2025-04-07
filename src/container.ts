@@ -36,9 +36,12 @@ export class Container implements Disposable, IContainer {
    * @param abortSignal Signal for aborting/killing container.
    */
   constructor(abortSignal?: AbortSignal) {
-    this.id = execSync("podman run -di diffkemp-prs:latest", {
-      encoding: "utf-8",
-    }).trim();
+    this.id = execSync(
+      "podman run -di -v'.diffkemp-patches:/.diffkemp-patches' diffkemp-prs:latest",
+      {
+        encoding: "utf-8",
+      },
+    ).trim();
     this.abortSignal = abortSignal;
     this.abortEvent = () => {
       this.killContainer();
