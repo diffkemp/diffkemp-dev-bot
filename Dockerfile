@@ -45,6 +45,17 @@ RUN mkdir /tools && \
 # Additional dependencies
 RUN nix-env -iA nixpkgs.gnused nixpkgs.diffutils
 
+# Caching dependencies for older PRs to speed up analysis
+ARG DIFFKEMP_CACHE_OLD=""
+RUN if [[ -n "${DIFFKEMP_CACHE_OLD}" ]] ; then \
+        git clone https://github.com/diffkemp/diffkemp --depth 1 /diffkemp && \
+        (cd /diffkemp && git fetch origin 0a955ae3fd973dbbfb481ed9894ff32119195e16 && \
+         git checkout 0a955ae3fd973dbbfb481ed9894ff32119195e16 && nix build && \
+         nix develop --command nix-shell -p gcc13 \
+        ) && \
+        rm -rf /diffkemp; \
+    fi
+
 # For image rebuilds - install latest DiffKemp nix dependencies
 ARG DIFFKEMP_NIX_CACHEBUST=""
 RUN if [[ -n "${DIFFKEMP_NIX_CACHEBUST}" ]] ; then \
