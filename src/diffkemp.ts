@@ -13,6 +13,7 @@ import { EvaluationAbort } from "./evaluation/abort.js";
 export class DiffKemp {
   /** Path in container to directory with patches for DiffKemp. */
   static readonly PATCHES_DIR = "/.diffkemp-patches";
+  static readonly BUILD_PATCHES_DIR = "/build-patches";
   /** Owner name and repository name. */
   private repo: string;
   /** Branch name. */
@@ -77,6 +78,9 @@ export class DiffKemp {
   /** Apply patches for analysis reason that are not yet part of DiffKemp. */
   private async _applyPatches(): Promise<void> {
     // Try to apply patches if they do not work, continue without them
+    await this.container.run(
+      `git -C ${this.directory} apply ${join(DiffKemp.BUILD_PATCHES_DIR, "*")}`,
+    );
     try {
       await this.container.run(`git -C ${this.directory} apply ${join(DiffKemp.PATCHES_DIR, "*")}`);
     } catch {

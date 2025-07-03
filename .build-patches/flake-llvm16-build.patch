@@ -1,0 +1,13 @@
+diff --git a/flake.nix b/flake.nix
+index cf4c40f..7634f5d 100644
+--- a/flake.nix
++++ b/flake.nix
+@@ -44,6 +44,8 @@
+             ];
+ 
+             WITHOUT_RPYTHON = true;
++            # Turns off tests, necessary for building llvm16.
++            doCheck = false;
+ 
+             # Including cmake in nativeBuildInputs automatically runs it during
+             # configurePhase so we just need to set correct flags.
