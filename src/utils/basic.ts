@@ -4,7 +4,7 @@ import { ProbotOctokit } from "probot";
 
 /**
  * Returns promise with app installation token for repo. The token only allows to read repository
- * content.
+ * content and will expire after 1 hour.
  */
 export async function getInstallationToken(
   octokit: ProbotOctokit,

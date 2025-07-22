@@ -6,6 +6,7 @@
 
 import { Container } from "../container.js";
 import { DiffKemp } from "../diffkemp.js";
+import { getInstallationToken } from "../utils/basic.js";
 import { EvaluationAbort } from "./abort.js";
 import { Cache } from "./cache.js";
 import { EvaluationConfig } from "./config.js";
@@ -24,6 +25,11 @@ const KERNEL_BUILD_TIME_LIMIT = 3.5 * 60 * 60 * 1000;
 
 /** Class for running evaluations of PRs. */
 export class Evaluation {
+  /**
+   * If the base repository is private, the attribute contains app token to be able to clone base
+   * repository. (initially undefined)
+   */
+  cachedRepoAppToken?: string;
   abortController: AbortController;
   config: EvaluationConfig;
   selectedExperiments: ExperimentSelection;
@@ -99,7 +105,7 @@ export class Evaluation {
       this.config.prBranch!,
       runnerOptions,
       this.selectedExperiments,
-      this.config.token,
+      await this.getBaseAppInstallationToken(),
     );
     const results = await evaluation.runExperiments(cachingOption, detailedResultsCaching);
     if (this.config.cachePrResults && this.config.prSHA) {
@@ -128,7 +134,7 @@ export class Evaluation {
       this.config.baseBranch,
       { cmpOpts: this.config.options?.cmpOpt },
       this.selectedExperiments,
-      this.config.token,
+      await this.getBaseAppInstallationToken(),
     );
     const detailedResultsCaching = {
       cache: this.config.detailedResultsCaching ? this.config.baseSHA : undefined,
@@ -168,7 +174,7 @@ export class Evaluation {
       this.config.baseBranch,
       {},
       new ExperimentSelection(),
-      this.config.token,
+      await this.getBaseAppInstallationToken(),
     );
     const detailedResultsCaching = {
       cache: this.config.detailedResultsCaching ? this.config.baseSHA : undefined,
@@ -195,6 +201,20 @@ export class Evaluation {
 
   public getPRRepoAndBranch() {
     return { repo: this.config.prRepo, branch: this.config.prBranch };
+  }
+
+  private async getBaseAppInstallationToken() {
+    if (this.cachedRepoAppToken) {
+      return this.cachedRepoAppToken;
+    } else if (!this.config.baseRepoPrivate || !this.config.installationId) {
+      return undefined;
+    } else {
+      this.cachedRepoAppToken = await getInstallationToken(this.config.octokit, {
+        installationId: this.config.installationId,
+        repositoryId: this.config.baseRepoId,
+      });
+      return this.cachedRepoAppToken;
+    }
   }
 
   /** Aborts evaluation. */

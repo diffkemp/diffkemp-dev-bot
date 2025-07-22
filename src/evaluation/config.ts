@@ -4,14 +4,11 @@
  * @author Lukas Petr
  */
 
-import { Context, Logger } from "probot";
-import { getDefaultBranchSHA, getInstallationToken, getPR } from "../utils/comments.js";
+import { Context, Logger, ProbotOctokit } from "probot";
+import { getDefaultBranchSHA, getPR } from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command, Option } from "commander";
-import {
-  getInstallationToken as basicGetInstallationToken,
-  getDefaultBranchSHA as basicGetDefaultBranchSHA,
-} from "../utils/basic.js";
+import { getDefaultBranchSHA as basicGetDefaultBranchSHA } from "../utils/basic.js";
 
 /**
  * Text in a comment on a PR which launches evaluation of the PR.
@@ -22,6 +19,7 @@ export const EVALUATION_REGEX = /^\\evaluate\b(.*)$/m;
 
 /** Class containing necessary configuration for running evaluation. */
 export class EvaluationConfig {
+  octokit: ProbotOctokit;
   /** Class for logging. */
   logger;
   /** Owner and repository name from which the PR was made. */
@@ -29,18 +27,23 @@ export class EvaluationConfig {
   /** Branch containing commits which are in the PR. */
   prBranch;
 
-  /** App installation token for base repository, necessary for cloning private repos. */
-  token?;
   /** Owner and repository on which the PR was opened. */
   baseRepo;
   /** Default branch of base repository. */
   baseBranch;
+  /** Id of a repository on which PR was created. */
+  baseRepoId: number;
+  /** If the base repository is not public. */
+  baseRepoPrivate: boolean;
   /** Options for running evaluation provided by user. */
   options;
   /** SHA of last commit in the default branch of base repository. */
   baseSHA;
   /** SHA of a last PR commit. */
   prSHA?: string;
+
+  /** Installation id or undefined (mostly when testing). */
+  installationId?: number;
 
   cacheBaseResults;
   cacheBaseSnapshots;
@@ -56,15 +59,18 @@ export class EvaluationConfig {
   detailedResultsCaching = false;
 
   constructor(params: EvaluationConfigParams) {
+    this.octokit = params.octokit;
     this.prRepo = params.prRepo;
     this.prBranch = params.prBranch;
     this.baseRepo = params.baseRepo;
     this.baseBranch = params.baseBranch;
-    this.token = params.token;
+    this.baseRepoId = params.baseRepoId;
+    this.baseRepoPrivate = params.baseRepoPrivate;
     this.options = params.options;
     this.logger = params.logger;
     this.baseSHA = params.baseSHA;
     this.prSHA = params.prSHA;
+    this.installationId = params.installationId;
     if (params.cacheBaseResults === undefined) {
       this.cacheBaseResults = this.determineCacheBaseResults();
     } else {
@@ -95,9 +101,6 @@ export class EvaluationConfig {
    */
   static async fromIssueComment(context: Context<"issue_comment">) {
     const prInfo = await getPR(context);
-    const { private: isPrivate } = context.payload.repository;
-    // If the repository is private we need to get token, so we can clone the repo.
-    const token = isPrivate ? await getInstallationToken(context) : undefined;
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
     // For open PRs use current master
     let baseBranch: string, baseRepo: string, baseSHA: string;
@@ -112,14 +115,17 @@ export class EvaluationConfig {
     const prNumber = context.payload.issue.number;
     const logger = context.log.child({ evalType: `PR comment (${prNumber})` });
     return new EvaluationConfig({
+      octokit: context.octokit,
       prBranch: prInfo.prBranch,
       prRepo: prInfo.prRepo,
       baseBranch,
       baseRepo,
-      token,
+      baseRepoId: context.payload.repository.id,
+      baseRepoPrivate: context.payload.repository.private,
       options,
       logger,
       baseSHA,
+      installationId: context.payload.installation?.id,
     });
   }
   /**
@@ -129,21 +135,23 @@ export class EvaluationConfig {
    */
   static async fromPushToMaster(context: Context<"push">) {
     const {
-      private: isPrivate,
+      private: baseRepoPrivate,
       full_name: baseRepo,
       default_branch: baseBranch,
+      id: baseRepoId,
     } = context.payload.repository;
-    // If the repository is private we need to get token, so we can clone the repo.
-    const token = isPrivate ? await getInstallationToken(context) : undefined;
     const prSHA = context.payload.after;
     const logger = context.log.child({ evalType: `master push (${prSHA})` });
     const baseSHA = await getDefaultBranchSHA(context);
     return new EvaluationConfig({
+      octokit: context.octokit,
       baseBranch,
       baseRepo,
-      token,
+      baseRepoId,
+      baseRepoPrivate,
       logger,
       baseSHA,
+      installationId: context.payload.installation?.id,
     });
   }
 
@@ -152,15 +160,7 @@ export class EvaluationConfig {
     const repository = context.payload.repositories?.[0];
     if (!repository) throw Error("Missing repository in the installation info");
     const [owner, repo] = repository.full_name.split("/");
-    const { default_branch, private: isPrivate } = (
-      await context.octokit.repos.get({ owner, repo })
-    ).data;
-    const token = isPrivate
-      ? await basicGetInstallationToken(context.octokit, {
-          installationId: context.payload.installation.id,
-          repositoryId: repository.id,
-        })
-      : undefined;
+    const { default_branch } = (await context.octokit.repos.get({ owner, repo })).data;
     const baseSHA = await basicGetDefaultBranchSHA(context.octokit, {
       owner,
       repo,
@@ -168,11 +168,14 @@ export class EvaluationConfig {
     });
     const logger = context.log.child({ evalType: "installation" });
     return new EvaluationConfig({
+      octokit: context.octokit,
       baseBranch: default_branch,
       baseRepo: repository.full_name,
-      token,
+      baseRepoId: repository.id,
+      baseRepoPrivate: repository.private,
       logger,
       baseSHA,
+      installationId: context.payload.installation.id,
     });
   }
 
@@ -203,10 +206,15 @@ export class EvaluationConfig {
   }
 }
 interface EvaluationConfigParams {
+  octokit: ProbotOctokit;
   prRepo?: string;
   prBranch?: string;
   baseRepo: string;
   baseBranch: string;
+  /** Id of a repository on which PR was created. */
+  baseRepoId: number;
+  /** If the base repository is not public. */
+  baseRepoPrivate: boolean;
   token?: string;
   options?: EvaluationOptions;
   logger: Logger;
@@ -241,6 +249,8 @@ interface EvaluationConfigParams {
   forceCaching?: boolean;
   /** If true caches the directories with comparison results. */
   detailedResultsCaching?: boolean;
+  /** Installation id or null (mostly for testing purposes). */
+  installationId?: number;
 }
 
 /** Type representing options provided by user for running evaluation. */

@@ -71,10 +71,13 @@ class PastPrAnalysis {
     const baseBranch = data.base.sha;
 
     const config = new EvaluationConfig({
+      octokit: this.octokit,
       prRepo,
       prBranch,
       baseRepo,
       baseBranch,
+      baseRepoId: data.base.repo.id,
+      baseRepoPrivate: false,
       logger: pino({ level: "silent" }),
       baseSHA: baseBranch,
       prSHA: prBranch,

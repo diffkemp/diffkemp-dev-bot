@@ -5,10 +5,7 @@
  */
 import { Context } from "probot";
 import { Label, LabelType } from "./labels.js";
-import {
-  getInstallationToken as basicGetInstallationToken,
-  getDefaultBranchSHA as basicGetDefaultBranchSHA,
-} from "./basic.js";
+import { getDefaultBranchSHA as basicGetDefaultBranchSHA } from "./basic.js";
 
 /**
  * Checks the commenter's permissions on the repository.
@@ -79,17 +76,6 @@ export async function getPR(context: Context<"issue_comment">) {
     baseSHA: data.base.sha,
     prSHA: data.head.sha,
   };
-}
-
-/**
- * Returns promise with app installation token for repo based on context. The token only allows to
- * read repository content and will expire after 1 hour.
- */
-export async function getInstallationToken(context: Context<"issue_comment">) {
-  return await basicGetInstallationToken(context.octokit, {
-    installationId: context.payload.installation!.id,
-    repositoryId: context.payload.repository.id,
-  });
 }
 
 /** Returns current SHA of default branch. */
