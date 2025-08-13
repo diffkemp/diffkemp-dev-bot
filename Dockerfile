@@ -22,11 +22,17 @@ RUN git clone https://github.com/diffkemp/diffkemp --depth 1 /diffkemp && \
     (cd /diffkemp && nix build) && \
     nix develop /diffkemp --command bash -c '\
     mkdir -p /experiments/sources/kernel/functions && \
-    mkdir -p /experiments/sources/kernel/sysctl && \
     for version in ${KERNEL_VERSIONS[@]}; do \
       echo $version; \
       rhel-kernel-get --kabi -o /experiments/sources/kernel/functions ${version}; \
       (cd /experiments/sources/kernel/functions/linux-${version} && make cscope); \
+    done'
+
+RUN (cd /diffkemp && nix build) && \
+    nix develop /diffkemp --command bash -c '\
+    mkdir -p /experiments/sources/kernel/sysctl && \
+    for version in ${KERNEL_VERSIONS[@]}; do \
+      echo $version; \
       cp -r /experiments/sources/kernel/functions/linux-${version} /experiments/sources/kernel/sysctl; \
       (cd /experiments/sources/kernel/sysctl/linux-${version} && make cscope); \
     done' && \
