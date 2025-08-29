@@ -79,10 +79,12 @@ export class DiffKemp {
   private async _applyPatches(): Promise<void> {
     // Try to apply patches if they do not work, continue without them
     await this.container.run(
-      `git -C ${this.directory} apply ${join(DiffKemp.BUILD_PATCHES_DIR, "*")}`,
+      `find ${DiffKemp.BUILD_PATCHES_DIR} -name *.patch -exec git -C ${this.directory} apply {} ";"`,
     );
     try {
-      await this.container.run(`git -C ${this.directory} apply ${join(DiffKemp.PATCHES_DIR, "*")}`);
+      await this.container.run(
+        `find ${DiffKemp.PATCHES_DIR} -name *.patch -exec git -C ${this.directory} apply {} ";"`,
+      );
     } catch {
       return;
     }

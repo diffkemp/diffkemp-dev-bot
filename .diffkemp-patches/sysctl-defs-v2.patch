@@ -1,8 +1,14 @@
 diff --git a/diffkemp/diffkemp.py b/diffkemp/diffkemp.py
-index 7d32e04..487c8a9 100644
+index 2dca570..3dbf40c 100644
 --- a/diffkemp/diffkemp.py
 +++ b/diffkemp/diffkemp.py
-@@ -425,7 +425,9 @@ def compare(args):
+@@ -379,11 +379,14 @@ def compare(args):
+ 
+     config = Config.from_args(args)
+     result = Result(Result.Kind.NONE, args.snapshot_dir_old,
+-                    args.snapshot_dir_old, start_time=default_timer())
++                    args.snapshot_dir_old, start_time=default_timer(),
++                    most_outer=True)
  
      for group_name, group in sorted(config.snapshot_first.fun_groups.items()):
          group_printed = False
@@ -12,7 +18,7 @@ index 7d32e04..487c8a9 100644
          # Set the group directory
          if output_dir is not None and group_name is not None:
              group_dir = os.path.join(output_dir, group_name)
-@@ -451,7 +454,7 @@ def compare(args):
+@@ -410,7 +413,7 @@ def compare(args):
  
              # Check if the module exists in both snapshots
              if old_fun_desc.mod is None or new_fun_desc.mod is None:
@@ -21,7 +27,7 @@ index 7d32e04..487c8a9 100644
                  if group_name is not None and not group_printed:
                      print("{}:".format(group_name))
                      group_printed = True
-@@ -481,7 +484,7 @@ def compare(args):
+@@ -440,7 +443,7 @@ def compare(args):
                      else:
                          fun_result.kind = Result.Kind.EQUAL
  
@@ -30,7 +36,7 @@ index 7d32e04..487c8a9 100644
  
                  # Printing information about failures and non-equal functions.
                  if fun_result.kind in [Result.Kind.NOT_EQUAL,
-@@ -523,9 +526,11 @@ def compare(args):
+@@ -482,9 +485,11 @@ def compare(args):
              old_fun_desc.mod.clean_module()
              new_fun_desc.mod.clean_module()
              LlvmModule.clean_all()
@@ -43,7 +49,7 @@ index 7d32e04..487c8a9 100644
 +                                 kind=config.snapshot_first.list_kind,
                                   snapshot_dir_new=new_dir_abs, result=result)
 diff --git a/diffkemp/output.py b/diffkemp/output.py
-index af34b34..62b67a5 100644
+index 8af8a53..7b9ceb6 100644
 --- a/diffkemp/output.py
 +++ b/diffkemp/output.py
 @@ -8,10 +8,11 @@ import yaml
@@ -100,8 +106,8 @@ index af34b34..62b67a5 100644
 +        self._create_type_defs(graph)
  
 -    def _create_function_defs(self):
--        if self.result.graph is None:
 +    def _create_function_defs(self, graph):
+-        if self.result.graph is None:
 +        if graph is None:
              return
          definitions = {}
@@ -114,7 +120,7 @@ index af34b34..62b67a5 100644
              definition = {
                  "kind": "function",
                  "old": self._create_def_info(vertex.lines[0],
-@@ -103,18 +114,18 @@ class YamlOutput:
+@@ -101,18 +110,18 @@ class YamlOutput:
              definitions[name] = definition
          self.output["definitions"].update(definitions)
  
@@ -138,23 +144,42 @@ index af34b34..62b67a5 100644
                  if non_fun.name == type_name and \
                          isinstance(non_fun, ComparisonGraph.TypeDiff):
 diff --git a/diffkemp/semdiff/result.py b/diffkemp/semdiff/result.py
-index 3bd5a4b..d0ade99 100644
+index 7ac2423..92b608f 100644
 --- a/diffkemp/semdiff/result.py
 +++ b/diffkemp/semdiff/result.py
-@@ -334,6 +335,16 @@ class Result:
+@@ -140,7 +140,7 @@ class Result:
+             self.covered = covered
+ 
+     def __init__(self, kind, first_name, second_name, start_time=None,
+-                 stop_time=None):
++                 stop_time=None, most_outer=False):
+         self.kind = kind
+         self.first = Result.Entity(first_name)
+         self.second = Result.Entity(second_name)
+@@ -150,6 +150,7 @@ class Result:
+         self.inner = dict()
+         self.start_time = start_time
+         self.stop_time = stop_time
++        self.most_outer = most_outer
+ 
+     def __str__(self):
+         return str(self.kind)
+@@ -290,6 +291,18 @@ class Result:
  
      def report_stat(self, show_errors=False, extended_stat=False):
          """Reports all statistics."""
 +        # Backward compatibility
-+        r = Result(self.kind, self.first.name, self.second.name,
-+                   start_time=self.start_time,
-+                   stop_time=self.stop_time)
-+        # over groups
-+        for inner in self.inner.values():
-+            for cmp_fun in inner.inner.values():
-+                r.add_inner(cmp_fun)
-+        r.report_stat(show_errors, extended_stat)
-+        return
++        if self.most_outer:
++            r = Result(self.kind, self.first.name, self.second.name,
++                       start_time=self.start_time,
++                       stop_time=self.stop_time)
++            # over groups
++            for inner in self.inner.values():
++                for fun in inner.inner.values():
++                    r.add_inner(fun)
++            r.report_stat(show_errors, extended_stat)
++            return
++
          self.report_symbol_stat(show_errors)
          if extended_stat:
              print("")

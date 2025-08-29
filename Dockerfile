@@ -49,7 +49,7 @@ RUN mkdir /tools && \
     git clone https://github.com/PLukas2018/EqBench-workflow -b evaluation-enhancements --depth 1 /tools/eqbench
 
 # Additional dependencies
-RUN nix-env -iA nixpkgs.gnused nixpkgs.diffutils
+RUN nix-env -iA nixpkgs.gnused nixpkgs.diffutils nixpkgs.findutils
 
 COPY .build-patches /build-patches
 # Caching dependencies for older PRs to speed up analysis
