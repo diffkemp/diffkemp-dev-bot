@@ -24,7 +24,11 @@ export class EvaluationConfig {
   logger;
   /** Owner and repository name from which the PR was made. */
   prRepo;
-  /** Branch containing commits which are in the PR. */
+  /**
+   * Branch containing commits which are in the PR or SHA of a last commit in the PR.
+   *
+   * @note Used for git checkout.
+   */
   prBranch;
 
   /** Owner and repository on which the PR was opened. */
@@ -104,19 +108,22 @@ export class EvaluationConfig {
     const options = new EvaluationCommandParser().parse(context.payload.comment.body);
     // For open PRs use current master
     let baseBranch: string, baseRepo: string, baseSHA: string;
+    let prBranch: string;
     if (prInfo.state === "open") {
       ({ default_branch: baseBranch, full_name: baseRepo } = context.payload.repository);
       baseSHA = await getDefaultBranchSHA(context);
+      prBranch = prInfo.prBranch;
     }
-    // For closed PRs used the previous commit.
+    // For closed PRs used the previous commit and instead of PR branch use PR SHA (SHA of a last commit)
+    // in case the branch is already removed.
     else {
-      ({ baseSHA, baseRepo, baseSHA: baseBranch } = prInfo);
+      ({ baseSHA, baseRepo, baseSHA: baseBranch, prSHA: prBranch } = prInfo);
     }
     const prNumber = context.payload.issue.number;
     const logger = context.log.child({ evalType: `PR comment (${prNumber})` });
     return new EvaluationConfig({
       octokit: context.octokit,
-      prBranch: prInfo.prBranch,
+      prBranch: prBranch,
       prRepo: prInfo.prRepo,
       baseBranch,
       baseRepo,
