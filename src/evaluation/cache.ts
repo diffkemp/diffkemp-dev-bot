@@ -9,6 +9,9 @@ import { join } from "path";
 import { IContainer } from "../container.js";
 import { SuccessfulExperimentResults } from "./experiments/experiment.js";
 
+/** Divides snapshot commit SHA from llvm version. */
+const SNAP_SHA_LLVM_DIVIDER = "-llvm";
+
 /** Class for caching files and restoring them. */
 export class Cache {
   static CACHE_DIR = ".cache/";
@@ -78,13 +81,17 @@ export class Cache {
   /** Removes all snapshots except the one specified by key. */
   private static async removeSnapshots(key: string) {
     // Leaving only current snapshot
-    const dirNames = await readdir(join(Cache.CACHE_DIR, "snapshots"));
+    const dirNames = await this.getSnapshotKeys();
     for (const dirName of dirNames) {
       if (dirName !== key) {
         const path = join(Cache.CACHE_DIR, "snapshots", dirName);
         await rm(path, { recursive: true });
       }
     }
+  }
+  /** Returns list of snapshot keys for cached snapshots. */
+  public static async getSnapshotKeys(): Promise<string[]> {
+    return await readdir(join(Cache.CACHE_DIR, "snapshots"));
   }
   /**
    * Tries to restore snapshots from the cache to the container.
@@ -100,5 +107,20 @@ export class Cache {
       return true;
     }
     return false;
+  }
+  /** Creates key for caching snapshot. */
+  public static createSnapshotKey(commitSHA: string, llvmVersion: string) {
+    return `${commitSHA}${SNAP_SHA_LLVM_DIVIDER}${llvmVersion}`;
+  }
+  public static extractFromSnapshotKey(key: string): { commitSHA: string; llvmVersion: string } {
+    if (!key.includes(SNAP_SHA_LLVM_DIVIDER)) {
+      throw new Error(`Error: ${key} is not a snapshot key (wrong format)!`);
+    }
+    const dividerStartIndex = key.indexOf(SNAP_SHA_LLVM_DIVIDER);
+    const dividerEndIndex = dividerStartIndex + SNAP_SHA_LLVM_DIVIDER.length - 1;
+
+    const commitSHA = key.slice(0, dividerStartIndex);
+    const llvmVersion = key.slice(dividerEndIndex + 1);
+    return { commitSHA, llvmVersion };
   }
 }

@@ -317,8 +317,7 @@ class VersionEvaluation {
   /** Returns key for caching and restoring snapshots to/from cache. */
   private async getSnapshotCacheKey(diffkemp: DiffKemp, sha: string) {
     const llvmVersion = await diffkemp.getLlvmVersion();
-    const snapshotKey = `${sha}-llvm${llvmVersion}`;
-    return snapshotKey;
+    return Cache.createSnapshotKey(sha, llvmVersion);
   }
   /** Returns runners for running experiments based on selected experiments. */
   private getRunners(diffkemp: DiffKemp): ExperimentRunner[] {
