@@ -9,6 +9,8 @@ import { getDefaultBranchSHA, getPR } from "../utils/comments.js";
 import { parse } from "shell-quote";
 import { Command, Option } from "commander";
 import { getDefaultBranchSHA as basicGetDefaultBranchSHA } from "../utils/basic.js";
+import { Cache } from "./cache.js";
+import { isCommitBeforeCommit } from "../utils/commits.js";
 
 /**
  * Text in a comment on a PR which launches evaluation of the PR.
@@ -80,11 +82,7 @@ export class EvaluationConfig {
     } else {
       this.cacheBaseResults = params.cacheBaseResults;
     }
-    if (params.cacheBaseSnapshots === undefined) {
-      this.cacheBaseSnapshots = this.determineCacheBaseSnapshots();
-    } else {
-      this.cacheBaseSnapshots = params.cacheBaseSnapshots;
-    }
+    this.cacheBaseSnapshots = params.cacheBaseSnapshots;
     if (params.cachePrResults) {
       this.cachePrResults = params.cachePrResults;
     }
@@ -121,7 +119,7 @@ export class EvaluationConfig {
     }
     const prNumber = context.payload.issue.number;
     const logger = context.log.child({ evalType: `PR comment (${prNumber})` });
-    return new EvaluationConfig({
+    const config = new EvaluationConfig({
       octokit: context.octokit,
       prBranch: prBranch,
       prRepo: prInfo.prRepo,
@@ -133,7 +131,10 @@ export class EvaluationConfig {
       logger,
       baseSHA,
       installationId: context.payload.installation?.id,
+      cacheBaseSnapshots: true,
     });
+    await config.determineCacheBaseSnapshots();
+    return config;
   }
   /**
    * Creates config based on the push context, expects push to base branch.
@@ -150,7 +151,7 @@ export class EvaluationConfig {
     const prSHA = context.payload.after;
     const logger = context.log.child({ evalType: `master push (${prSHA})` });
     const baseSHA = await getDefaultBranchSHA(context);
-    return new EvaluationConfig({
+    const config = new EvaluationConfig({
       octokit: context.octokit,
       baseBranch,
       baseRepo,
@@ -159,7 +160,10 @@ export class EvaluationConfig {
       logger,
       baseSHA,
       installationId: context.payload.installation?.id,
+      cacheBaseSnapshots: true,
     });
+    await config.determineCacheBaseSnapshots();
+    return config;
   }
 
   /** Creates config based on newly created installation of the app. */
@@ -183,6 +187,7 @@ export class EvaluationConfig {
       logger,
       baseSHA,
       installationId: context.payload.installation.id,
+      cacheBaseSnapshots: true,
     });
   }
 
@@ -207,9 +212,26 @@ export class EvaluationConfig {
   private determineCacheBaseResults() {
     return !this.containsOptionsForBase() && this.runAllExperiments();
   }
-  /** Automatically determines if base snapshots should be cached. */
-  public determineCacheBaseSnapshots() {
-    return this.runAllExperiments();
+  /**
+   * Automatically determines if base snapshots should be cached and updates the
+   * `cacheBaseSnapshots` attribute based on it.
+   */
+  private async determineCacheBaseSnapshots() {
+    if (Cache.cacheOnlyLastSnapshot) {
+      // If caching only last snapshot, then this base commit SHA must be later than the already cached one/s.
+      const [owner, repo] = this.baseRepo.split("/");
+      const currentBaseSHA = this.baseSHA;
+      const SHAsOfCachedSnaps = (await Cache.getSnapshotKeys()).map(
+        (key) => Cache.extractFromSnapshotKey(key).commitSHA,
+      );
+      for (const cachedSHA of SHAsOfCachedSnaps) {
+        if (!(await isCommitBeforeCommit(this.octokit, owner, repo, cachedSHA, currentBaseSHA))) {
+          this.cacheBaseSnapshots = false;
+          return;
+        }
+      }
+    }
+    this.cacheBaseResults = this.runAllExperiments();
   }
 }
 interface EvaluationConfigParams {
@@ -237,11 +259,8 @@ interface EvaluationConfigParams {
    * determined automatically.
    */
   cacheBaseResults?: boolean;
-  /**
-   * True, if snapshots for the base branch should be cached, false if not. If not specified
-   * determined automatically.
-   */
-  cacheBaseSnapshots?: boolean;
+  /** True, if snapshots for the base branch should be cached, false if not. */
+  cacheBaseSnapshots: boolean;
   /**
    * True, if results for the PR branch should be cached, false if not. If not specified they are
    * not cached.
