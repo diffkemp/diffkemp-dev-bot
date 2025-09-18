@@ -91,6 +91,10 @@ export class Cache {
   }
   /** Returns list of snapshot keys for cached snapshots. */
   public static async getSnapshotKeys(): Promise<string[]> {
+    const dir = join(Cache.CACHE_DIR, "snapshots");
+    if (!existsSync(dir)) {
+      return [];
+    }
     return await readdir(join(Cache.CACHE_DIR, "snapshots"));
   }
   /**
