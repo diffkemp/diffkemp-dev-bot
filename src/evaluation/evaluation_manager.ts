@@ -62,6 +62,20 @@ export class EvaluationManager {
     }
   }
 
+  /** Process pull request synchronization (push to branch), aborts running evaluations. */
+  public async pullRequestSync(context: Context<"pull_request.synchronize">) {
+    const prNumber = context.payload.pull_request.number;
+    context.log.info(`PR sync (${prNumber})`);
+    // Owner and branch from which the PR was created.
+    const repo = context.payload.pull_request.head.repo?.full_name;
+    if (!repo) {
+      context.log.error(`Error: missing repository name (PR ${prNumber})`);
+      return;
+    }
+    const branch = context.payload.pull_request.head.ref;
+    await this.abortPREvaluations(repo, branch);
+  }
+
   /** Handles pushes to master/default branch. */
   async pushToMasterHandler(context: Context<"push">) {
     context.log.info("Push to default branch");

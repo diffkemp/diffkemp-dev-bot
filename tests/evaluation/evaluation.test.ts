@@ -250,3 +250,48 @@ describe("Evaluation initiation", async () => {
     nock.enableNetConnect();
   });
 });
+
+test("pull request synchronization should abort running evaluations", async () => {
+  nock.disableNetConnect();
+
+  const evaluationMock = vi
+    .spyOn(EvaluationManager.prototype as never, "abortPREvaluations")
+    .mockImplementation(() => Promise.resolve());
+
+  const probot = new Probot({
+    githubToken: "test",
+  });
+  const { default: app } = await import("../../src/index.js");
+  app(probot);
+
+  const PRSynchronizeExample = {
+    action: "synchronize",
+    number: 11,
+    pull_request: {
+      id: 2831741079,
+      number: 11,
+      state: "open",
+      title: "PR title",
+      head: {
+        label: "my-author:my-branch",
+        ref: "my-branch",
+        sha: "",
+        user: {},
+        repo: {
+          id: 542497004,
+          name: "diffkemp",
+          full_name: "my-author/diffkemp",
+          private: false,
+          owner: {},
+        },
+      },
+      base: {},
+    },
+  };
+  await probot.receive({
+    name: "pull_request.synchronize",
+    payload: PRSynchronizeExample,
+  } as never);
+
+  await expect.poll(() => evaluationMock).toHaveBeenCalledWith("my-author/diffkemp", "my-branch");
+});

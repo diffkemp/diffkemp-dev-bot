@@ -20,6 +20,9 @@ export default (app: Probot) => {
   app.on("installation.created", async (context) => {
     await appInstallationHandler(context);
   });
+  app.on("pull_request.synchronize", async (context) => {
+    await pullRequestSyncHandler(context);
+  });
 };
 
 /** Handles when comment was created on an issue/PR. */
@@ -47,6 +50,11 @@ async function pushHandler(context: Context<"push">) {
   if (pushToBranch(context)) {
     await EvaluationManager.getSingleton().pushToBranch(context);
   }
+}
+
+/** Handles updates of a pull request, specifically push/update of the PR branch. */
+async function pullRequestSyncHandler(context: Context<"pull_request.synchronize">) {
+  await EvaluationManager.getSingleton().pullRequestSync(context);
 }
 
 /** Handles app installation to a repository. */
