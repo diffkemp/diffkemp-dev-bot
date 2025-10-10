@@ -6,12 +6,7 @@
 import { Evaluation } from "./evaluation.js";
 import { Context } from "probot";
 import { CommandParserError, EvaluationConfig } from "./config.js";
-import {
-  getRepoAndBranch,
-  getTimeOfPush,
-  isPushToDefaultBranch,
-  updatesNix,
-} from "../utils/push.js";
+import { getTimeOfPush, isPushToDefaultBranch, updatesNix } from "../utils/push.js";
 import { Container } from "../container.js";
 import { createComment, createCommentReaction, createCommitStatuses } from "../utils/comments.js";
 import { createLabelsOnIssue, removeLabelsOnIssue } from "../utils/labels.js";
@@ -55,11 +50,8 @@ export class EvaluationManager {
     context.log.debug("Push to branch");
     if (isPushToDefaultBranch(context)) {
       await this.pushToMasterHandler(context);
-    } else {
-      // Possible push to PR branch, abort all running/prepared evaluations on the PR.
-      const { repo, branch } = getRepoAndBranch(context);
-      await this.abortPREvaluations(repo, branch);
     }
+    // Push to PR branch is solved by listening to `pull_request.synchronize`.
   }
 
   /** Process pull request synchronization (push to branch), aborts running evaluations. */
