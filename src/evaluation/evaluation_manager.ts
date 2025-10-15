@@ -9,7 +9,7 @@ import { CommandParserError, EvaluationConfig } from "./config.js";
 import { getTimeOfPush, isPushToDefaultBranch, updatesNix } from "../utils/push.js";
 import { Container } from "../container.js";
 import { createComment, createCommentReaction, createCommitStatuses } from "../utils/comments.js";
-import { createLabelsOnIssue, removeLabelsOnIssue } from "../utils/labels.js";
+import { createLabelsOnIssue, removeLabelGroupOnIssue } from "../utils/labels.js";
 import { Mutex } from "async-mutex";
 import { EvaluationAbort } from "./abort.js";
 
@@ -129,7 +129,7 @@ export class EvaluationManager {
           for (const result of results.differences) {
             const labelGroup = result.getLabelGroup();
             if (labelGroup) {
-              await removeLabelsOnIssue(context, labelGroup);
+              await removeLabelGroupOnIssue(context, labelGroup);
             }
             await createComment(context, await result.report());
             const labels = result.getLabels();

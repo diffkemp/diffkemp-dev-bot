@@ -166,7 +166,7 @@ export async function createLabelOnRepo(context: Context<"issues">, label: Label
 }
 
 /** Removes labels from issue specified by LabelGroup. */
-export async function removeLabelsOnIssue(context: Context<"issues">, labelGroup: LabelGroup) {
+export async function removeLabelGroupOnIssue(context: Context<"issues">, labelGroup: LabelGroup) {
   const labels = (Object.values(labelGroup) as Label[]).flat();
   // Labels which are located in the group and which are on the issue.
   const labelsToRemove = new Array<string>();
