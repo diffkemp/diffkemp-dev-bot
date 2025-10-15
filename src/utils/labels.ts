@@ -182,3 +182,29 @@ export async function removeLabelGroupOnIssue(context: Context<"issues">, labelG
     await context.octokit.issues.removeLabel(context.issue({ name: label }));
   }
 }
+
+/**
+ * Removes all evaluation labels from issue.
+ *
+ * Gets all labels on the issue, updates the labels leaving only labels that are not connected with
+ * evaluation.
+ *
+ * @note Theoretically a data race can happen and a label can get missing, but this approach allows to use only one API
+ * call instead of using API calls for removing one label at a time.
+ */
+export async function removeAllEvalLabelsOnIssue(context: Context<"issues">) {
+  // Getting all possible labels that can be on the issue.
+  const evalLabels = Object.values(LabelGroups)
+    .map((group) => Object.values(group) as Label[])
+    .flat();
+  // Getting labels that are on the issue.
+  const response = await context.octokit.issues.listLabelsOnIssue(context.issue());
+  // Labels that are not connected with evaluation and should be left.
+  const labelsToLeave = response.data
+    .map((label) => label.name)
+    .filter((label) => {
+      const isEvalLabel = evalLabels.some((evalLabel) => evalLabel.getLabelName() === label);
+      return !isEvalLabel;
+    });
+  await context.octokit.issues.setLabels(context.issue({ labels: labelsToLeave }));
+}

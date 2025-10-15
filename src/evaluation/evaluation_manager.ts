@@ -9,7 +9,11 @@ import { CommandParserError, EvaluationConfig } from "./config.js";
 import { getTimeOfPush, isPushToDefaultBranch, updatesNix } from "../utils/push.js";
 import { Container } from "../container.js";
 import { createComment, createCommentReaction, createCommitStatuses } from "../utils/comments.js";
-import { createLabelsOnIssue, removeLabelGroupOnIssue } from "../utils/labels.js";
+import {
+  createLabelsOnIssue,
+  removeAllEvalLabelsOnIssue,
+  removeLabelGroupOnIssue,
+} from "../utils/labels.js";
 import { Mutex } from "async-mutex";
 import { EvaluationAbort } from "./abort.js";
 
@@ -65,6 +69,7 @@ export class EvaluationManager {
       return;
     }
     const branch = context.payload.pull_request.head.ref;
+    await removeAllEvalLabelsOnIssue(context);
     await this.abortPREvaluations(repo, branch);
   }
 

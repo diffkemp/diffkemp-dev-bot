@@ -7,6 +7,7 @@ import { Evaluation } from "../../src/evaluation/evaluation.js";
 import { EvaluationResults } from "../../src/evaluation/evaluation_results.js";
 import { EvaluationConfig } from "../../src/evaluation/config.js";
 import { pino } from "pino";
+import * as labelsModule from "../../src/utils/labels.js";
 
 /** Creates payload for comment created event with given comment. */
 const createIssueCommentPayload = (comment: string) => ({
@@ -257,6 +258,7 @@ test("pull request synchronization should abort running evaluations", async () =
   const evaluationMock = vi
     .spyOn(EvaluationManager.prototype as never, "abortPREvaluations")
     .mockImplementation(() => Promise.resolve());
+  const labelMock = vi.spyOn(labelsModule, "removeAllEvalLabelsOnIssue").mockResolvedValue();
 
   const probot = new Probot({
     githubToken: "test",
@@ -294,4 +296,6 @@ test("pull request synchronization should abort running evaluations", async () =
   } as never);
 
   await expect.poll(() => evaluationMock).toHaveBeenCalledWith("my-author/diffkemp", "my-branch");
+
+  labelMock.mockRestore();
 });
