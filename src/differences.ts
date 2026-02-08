@@ -68,9 +68,20 @@ export class Differences {
   }
   /** Extract info from diffkemp-out.yaml loaded to JSON as object (yaml). */
   static fromDiffKempOut(yaml: DiffKempOutputFormat) {
-    yaml.results.sort((result1, result2) => result1.function.localeCompare(result2.function));
+    // Extracting results for compared functions
+    let results = Array<ComparedFunctionOutputFormat>();
+    if (yaml.results.length > 0 && "function" in yaml.results[0]) {
+      // Results for normal comparison
+      results = yaml.results as ResultNormalComparisonFormat;
+    } else {
+      // Results for sysctl comparison
+      (yaml.results as ResultSysctlComparisonFormat).forEach((result) => {
+        results.push(...result.results);
+      });
+    }
+    results.sort((result1, result2) => result1.function.localeCompare(result2.function));
     const comparedDiffering = new Map<string, string[]>();
-    yaml.results.forEach((result) => {
+    results.forEach((result) => {
       const cmpFun = result.function;
       const differingFuns = result.diffs.map((diff) => diff.function).sort();
       comparedDiffering.set(cmpFun, differingFuns);
@@ -289,21 +300,35 @@ export interface DifferingInfo {
 export interface DiffKempOutputFormat {
   "old-snapshot"?: string;
   "new-snapshot"?: string;
-  results: {
-    // Compared function name
-    function: string;
-    diffs: {
-      // Differing function name
-      function: string;
-    }[];
-  }[];
+  results: ResultNormalComparisonFormat | ResultSysctlComparisonFormat;
   definitions?: DKOutDefinitions;
+}
+
+/** Format for results when running compare command without --sysctl parameters. */
+type ResultNormalComparisonFormat = ComparedFunctionOutputFormat[];
+/** Format for results when running compare command with `--sysctl` parameters. */
+type ResultSysctlComparisonFormat = {
+  sysctl: string;
+  results: ComparedFunctionOutputFormat[];
+}[];
+
+/** Format of subpart of `diffkemp-out.yaml` file describing compared function. */
+interface ComparedFunctionOutputFormat {
+  // Compared function name
+  function: string;
+  diffs: {
+    // Differing function name
+    function: string;
+    "old-callstack": unknown;
+    "new-callstack": unknown;
+  }[];
 }
 
 /** Format of definitions of functions from diffkemp-out.yaml. */
 type DKOutDefinitions = Record<string, DKOutDefinition>;
 /** Format of definition of old/new function from diffkemp-out.yaml. */
 export interface DKOutDefinition {
+  kind: string;
   old?: {
     file?: string;
     line?: number;
