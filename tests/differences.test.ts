@@ -132,3 +132,40 @@ test("it should be possible to extract differences from diffkemp-out.yaml for sy
   );
   expect(differences.getDiffering()).toEqual(["RECLAIM_UNMAP"]);
 });
+
+const EXAMPLE_GLOB_VAR_AND_FUN: DiffKempOutputFormat = {
+  "old-snapshot": "/old/",
+  "new-snapshot": "/new/",
+  results: [
+    { function: "a_fun", diffs: [{ function: "X", "old-callstack": [], "new-callstack": [] }] },
+    {
+      glob_var: "g",
+      results: [
+        { function: "b_fun", diffs: [{ function: "Y", "old-callstack": [], "new-callstack": [] }] },
+      ],
+    },
+    { function: "c_fun", diffs: [{ function: "Z", "old-callstack": [], "new-callstack": [] }] },
+  ],
+};
+
+test("it should be able to parse output glob_var + functions", () => {
+  const differences = Differences.fromDiffKempOut(EXAMPLE_GLOB_VAR_AND_FUN);
+  expect(differences.oldSrcPath).toBe("/old/");
+  expect(differences.newSrcPath).toBe("/new/");
+  expect(differences.getCompared()).toEqual(["a_fun", "b_fun", "c_fun"]);
+  expect(differences.comparedDiffering).toEqual(
+    new Map([
+      ["a_fun", ["X"]],
+      ["b_fun", ["Y"]],
+      ["c_fun", ["Z"]],
+    ]),
+  );
+  expect(differences.getDifferingCompared()).toEqual(
+    new Map([
+      ["X", new Set(["a_fun"])],
+      ["Y", new Set(["b_fun"])],
+      ["Z", new Set(["c_fun"])],
+    ]),
+  );
+  expect(differences.getDiffering()).toEqual(["X", "Y", "Z"]);
+});
