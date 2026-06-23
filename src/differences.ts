@@ -68,17 +68,23 @@ export class Differences {
   }
   /** Extract info from diffkemp-out.yaml loaded to JSON as object (yaml). */
   static fromDiffKempOut(yaml: DiffKempOutputFormat) {
-    // Extracting results for compared functions
-    let results = Array<ComparedFunctionOutputFormat>();
-    if (yaml.results.length > 0 && "function" in yaml.results[0]) {
-      // Results for normal comparison
-      results = yaml.results as ResultNormalComparisonFormat;
-    } else {
-      // Results for sysctl comparison
-      (yaml.results as ResultSysctlComparisonFormat).forEach((result) => {
-        results.push(...result.results);
+    // Extracting results for compared functions. The `results` structure can be nested and may
+    // contain direct `function` entries or grouped entries (e.g. `sysctl`, `glob_var`) at 'any'
+    // depth — collect them recursively.
+    const results: ComparedFunctionOutputFormat[] = [];
+    const collect = (arr: ResultNormalComparisonFormat[] | ResultSysctlComparisonFormat[]) => {
+      if (!arr) return;
+      arr.forEach((item) => {
+        if ("function" in item && "diffs" in item && Array.isArray(item.diffs)) {
+          results.push(item);
+        }
+        // If this node groups other results, recurse into them.
+        if ("results" in item) {
+          collect(item.results);
+        }
       });
-    }
+    };
+    collect(yaml.results);
     results.sort((result1, result2) => result1.function.localeCompare(result2.function));
     const comparedDiffering = new Map<string, string[]>();
     results.forEach((result) => {
@@ -300,17 +306,17 @@ export interface DifferingInfo {
 export interface DiffKempOutputFormat {
   "old-snapshot"?: string;
   "new-snapshot"?: string;
-  results: ResultNormalComparisonFormat | ResultSysctlComparisonFormat;
+  results: ResultNormalComparisonFormat[] | ResultSysctlComparisonFormat[];
   definitions?: DKOutDefinitions;
 }
 
 /** Format for results when running compare command without --sysctl parameters. */
-type ResultNormalComparisonFormat = ComparedFunctionOutputFormat[];
+type ResultNormalComparisonFormat = ComparedFunctionOutputFormat | GlobalVarOutputFormat;
 /** Format for results when running compare command with `--sysctl` parameters. */
-type ResultSysctlComparisonFormat = {
+interface ResultSysctlComparisonFormat {
   sysctl: string;
   results: ComparedFunctionOutputFormat[];
-}[];
+}
 
 /** Format of subpart of `diffkemp-out.yaml` file describing compared function. */
 interface ComparedFunctionOutputFormat {
@@ -322,6 +328,12 @@ interface ComparedFunctionOutputFormat {
     "old-callstack": unknown;
     "new-callstack": unknown;
   }[];
+}
+
+/** Format of subpart of `diffkemp-out.yaml` file describing compared global variable. */
+interface GlobalVarOutputFormat {
+  glob_var: string;
+  results: ComparedFunctionOutputFormat[];
 }
 
 /** Format of definitions of functions from diffkemp-out.yaml. */
