@@ -1,0 +1,16 @@
+diff --git a/diffkemp/building/build_utils.py b/diffkemp/building/build_utils.py
+index ec182bc..0a0b966 100644
+--- a/diffkemp/building/build_utils.py
++++ b/diffkemp/building/build_utils.py
+@@ -43,9 +43,8 @@ def generate_from_function_list(snapshot, fun_list):
+                 print(os.path.relpath(llvm_mod.llvm,
+                                       snapshot.source_tree.source_dir))
+             elif llvm_mod.has_global(symbol):
+-                print()
+-                if add_funcs_for_globvar(snapshot, LlvmParam(symbol)):
+-                    snapshot.list_kind = "glob_var"
++                snapshot.add_fun(symbol, None)
++                print("skip")
+             else:
+                 snapshot.add_fun(symbol, None)
+                 print("not a function nor a global variable")
