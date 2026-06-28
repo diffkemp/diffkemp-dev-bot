@@ -37,7 +37,7 @@ export class Container implements Disposable, IContainer {
    */
   constructor(abortSignal?: AbortSignal) {
     this.id = execSync(
-      "podman run -di -v'.diffkemp-patches:/.diffkemp-patches' diffkemp-prs:latest",
+      "podman run -di -v'.diffkemp-patches:/.diffkemp-patches:z' diffkemp-prs:latest",
       {
         encoding: "utf-8",
       },
