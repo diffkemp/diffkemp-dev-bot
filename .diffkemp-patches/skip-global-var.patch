@@ -7,7 +7,7 @@ index ec182bc..0a0b966 100644
                                        snapshot.source_tree.source_dir))
              elif llvm_mod.has_global(symbol):
 -                print()
--                if add_funcs_for_globvar(snapshot, LlvmParam(symbol)):
+-                if add_funcs_for_globvar(snapshot, symbol, LlvmParam(symbol)):
 -                    snapshot.list_kind = "glob_var"
 +                snapshot.add_fun(symbol, None)
 +                print("skip")
